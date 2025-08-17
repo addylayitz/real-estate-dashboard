@@ -1,0 +1,22 @@
+/* 清除預設樣式 */
+#root {
+  margin: 0;
+  padding: 0;
+}
+
+/* 確保 Ant Design 的中文日期選擇器正常顯示 */
+.ant-picker-dropdown {
+  z-index: 1050;
+}
+
+/* 讓 Select 下拉選單有更好的體驗 */
+.ant-select-dropdown {
+  z-index: 1050;
+}
+
+/* 響應式調整 */
+@media (max-width: 640px) {
+  .ant-picker {
+    width: 100% !important;
+  }
+}
