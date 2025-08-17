@@ -128,7 +128,7 @@ async function loadAllData() {
 // 載入單一城市資料
 async function loadCityData(cityId, cityName) {
   try {
-    const response = await fetch(`/data/chunks/${cityId}.json`);
+    const response = await fetch(`./data/chunks/${cityId}.json`);
     
     if (!response.ok) {
       throw new Error(`HTTP ${response.status}: ${response.statusText}`);
