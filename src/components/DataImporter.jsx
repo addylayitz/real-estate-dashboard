@@ -122,7 +122,7 @@ const DataImporter = () => {
     setLoadingStatus('準備載入資料...');
 
     try {
-      const worker = new Worker(`${import.meta.env.BASE_URL}dataWorker_v2.js`);
+      const worker = new Worker(`${import.meta.env.BASE_URL}dataWorker_v3.js`);
       
       worker.onmessage = async (e) => {
         const { type, data, progress: currentProgress, totalCount, currentCount } = e.data;

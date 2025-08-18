@@ -25,7 +25,7 @@ const DataLoader = ({ visible, onClose }) => {
       await dbManager.init();
       
       // 建立 Worker
-      const worker = new Worker(`${import.meta.env.BASE_URL}dataWorker_v2.js`);
+      const worker = new Worker(`${import.meta.env.BASE_URL}dataWorker_v3.js`);
       
       worker.onmessage = async (e) => {
         const { type, data, error: workerError } = e.data;
