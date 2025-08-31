@@ -1,6 +1,6 @@
-// src/components/charts/ProjectAnalysis.jsx - 散布圖優化版本
+// src/components/charts/ProjectAnalysis.jsx - 新增每月交易筆數折線圖
 import { Card, Spin, Table, Tag } from 'antd';
-import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, ScatterChart, Scatter } from 'recharts';
+import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, ScatterChart, Scatter, LineChart, Line } from 'recharts';
 import { useStore } from '../../store/useStore';
 import { useMemo } from 'react';
 
@@ -78,6 +78,140 @@ const ProjectAnalysis = () => {
       .slice(0, 10);
   }, [projectData]);
 
+  // 計算每月交易筆數數據 - 支援多條折線
+  const monthlyTransactionData = useMemo(() => {
+    if (!filteredData || filteredData.length === 0) return { chartData: [], groupType: 'total' };
+
+    console.log('[ProjectAnalysis] 開始計算每月交易筆數...');
+    
+    // 從 useStore 取得當前篩選條件
+    const { filters } = useStore.getState();
+    
+    // 決定分組方式：建案 > 區域 > 總計
+    let groupType = 'total';
+    let groupKeys = ['總計'];
+    
+    // 檢查建案篩選（最高優先級）
+    if (filters.project && filters.project.trim() !== '') {
+      const projects = filters.project.split(',').map(p => p.trim()).filter(p => p);
+      if (projects.length > 0) {
+        groupType = 'project';
+        groupKeys = projects.slice(0, 3); // 最多3個建案
+        console.log('[ProjectAnalysis] 使用建案分組:', groupKeys);
+      }
+    }
+    // 檢查區域篩選（次優先級）
+    else if (filters.district && filters.district.trim() !== '') {
+      const districts = filters.district.split(',').map(d => d.trim()).filter(d => d);
+      if (districts.length > 0) {
+        groupType = 'district';
+        groupKeys = districts.slice(0, 3); // 最多3個區域
+        console.log('[ProjectAnalysis] 使用區域分組:', groupKeys);
+      }
+    }
+    
+    const monthlyStats = {};
+    let validDateCount = 0;
+    
+    filteredData.forEach((item, index) => {
+      if (!item.transactionDate) {
+        if (index < 5) {
+          console.log(`[ProjectAnalysis] 跳過第 ${index + 1} 筆，無交易日期`);
+        }
+        return;
+      }
+      
+      try {
+        const date = new Date(item.transactionDate);
+        
+        if (isNaN(date.getTime())) {
+          if (validDateCount < 5) {
+            console.warn(`[ProjectAnalysis] 無效日期:`, item.transactionDate);
+          }
+          return;
+        }
+        
+        const year = date.getFullYear();
+        const month = date.getMonth() + 1;
+        const monthKey = `${year}-${String(month).padStart(2, '0')}`;
+        
+        // 根據分組類型決定數據歸類
+        let itemGroupKeys = [];
+        
+        if (groupType === 'project') {
+          const itemProject = item.project || item['建案名稱'] || '未知建案';
+          if (groupKeys.includes(itemProject)) {
+            itemGroupKeys = [itemProject];
+          }
+        } else if (groupType === 'district') {
+          const itemDistrict = item.district || item['區域'] || '未知區域';
+          if (groupKeys.includes(itemDistrict)) {
+            itemGroupKeys = [itemDistrict];
+          }
+        } else {
+          itemGroupKeys = ['總計'];
+        }
+        
+        // 為每個符合的分組建立月份統計
+        itemGroupKeys.forEach(groupKey => {
+          const key = `${monthKey}-${groupKey}`;
+          
+          if (!monthlyStats[key]) {
+            monthlyStats[key] = {
+              month: monthKey,
+              year: year,
+              monthNum: month,
+              groupKey: groupKey,
+              count: 0,
+              displayMonth: `${year}/${String(month).padStart(2, '0')}`
+            };
+          }
+          
+          monthlyStats[key].count++;
+          validDateCount++;
+        });
+        
+      } catch (error) {
+        console.error('[ProjectAnalysis] 處理日期時發生錯誤:', error, item.transactionDate);
+      }
+    });
+
+    console.log('[ProjectAnalysis] 有效日期筆數:', validDateCount);
+    
+    // 取得所有月份並排序
+    const allMonths = [...new Set(Object.values(monthlyStats).map(item => item.month))]
+      .sort((a, b) => {
+        const [yearA, monthA] = a.split('-').map(Number);
+        const [yearB, monthB] = b.split('-').map(Number);
+        if (yearA !== yearB) return yearA - yearB;
+        return monthA - monthB;
+      })
+      .slice(-18); // 最近18個月
+    
+    // 為每個分組生成完整的月份數據
+    const chartData = allMonths.map(month => {
+      const [year, monthNum] = month.split('-').map(Number);
+      const result = {
+        month,
+        year,
+        monthNum,
+        displayMonth: `${year}/${String(monthNum).padStart(2, '0')}`
+      };
+      
+      // 為每個分組添加該月份的數據
+      groupKeys.forEach(groupKey => {
+        const key = `${month}-${groupKey}`;
+        const stat = monthlyStats[key];
+        result[groupKey] = stat ? stat.count : 0;
+      });
+      
+      return result;
+    });
+
+    console.log('[ProjectAnalysis] 每月交易數據 (多折線):', { chartData, groupType, groupKeys });
+    return { chartData, groupType, groupKeys };
+  }, [filteredData]);
+
   // 準備散點圖數據 - 單價vs面積（限制150坪以下）
   const scatterData = useMemo(() => {
     return projectData
@@ -108,6 +242,39 @@ const ProjectAnalysis = () => {
           <p className="text-sm">平均面積: {data.x} 坪</p>
           <p className="text-sm">平均單價: {data.y} 萬/坪</p>
           <p className="text-sm text-gray-500">交易筆數: {data.count} 筆</p>
+        </div>
+      );
+    }
+    return null;
+  };
+
+  // 自定義每月交易筆數工具提示 - 支援多折線
+  const CustomMonthlyTooltip = ({ active, payload, label }) => {
+    if (active && payload && payload.length) {
+      // 計算該月的天數
+      const monthKey = payload[0].payload.month;
+      const [year, month] = monthKey.split('-').map(Number);
+      const daysInMonth = new Date(year, month, 0).getDate();
+      
+      return (
+        <div className="bg-white p-3 border border-gray-300 rounded shadow-lg">
+          <p className="font-medium text-gray-800">{label}</p>
+          <hr className="my-2" />
+          {payload.map((entry, index) => {
+            const monthlyCount = entry.value;
+            const dailyAverage = Math.round((monthlyCount / daysInMonth) * 10) / 10; // 保留1位小數
+            
+            return (
+              <div key={index} className="mb-1">
+                <p className="text-sm font-medium" style={{ color: entry.color }}>
+                  {entry.dataKey}: {monthlyCount} 戶/月
+                </p>
+                <p className="text-xs text-gray-600 ml-2">
+                  平均 {dailyAverage} 戶/日
+                </p>
+              </div>
+            );
+          })}
         </div>
       );
     }
@@ -230,6 +397,87 @@ const ProjectAnalysis = () => {
                   <Bar dataKey="avgUnitPrice" fill="#82ca9d" />
                 </BarChart>
               </ResponsiveContainer>
+            </div>
+          )}
+
+          {/* 每月交易筆數折線圖 - 支援多條折線 */}
+          {monthlyTransactionData.chartData.length > 0 && (
+            <div>
+              <h4 className="text-lg font-medium mb-4">
+                每月交易筆數
+                {monthlyTransactionData.groupType !== 'total' && (
+                  <span className="text-sm font-normal text-gray-600 ml-2">
+                    ({monthlyTransactionData.groupType === 'project' ? '按建案分組' : '按區域分組'})
+                  </span>
+                )}
+              </h4>
+              <div className="text-sm text-gray-600 mb-3">
+                {monthlyTransactionData.groupType === 'total' 
+                  ? '顯示總體交易數量趨勢，滑鼠懸停可查看每日平均交易量'
+                  : `顯示 ${monthlyTransactionData.groupKeys.join('、')} 的交易數量比較趨勢`
+                }
+              </div>
+              <ResponsiveContainer width="100%" height={300}>
+                <LineChart data={monthlyTransactionData.chartData} margin={{ top: 20, right: 30, left: 20, bottom: 60 }}>
+                  <CartesianGrid strokeDasharray="3 3" stroke="#f0f0f0" />
+                  <XAxis 
+                    dataKey="displayMonth" 
+                    tick={{ fontSize: 12 }}
+                    angle={-45}
+                    textAnchor="end"
+                    height={60}
+                    interval={0}
+                  />
+                  <YAxis 
+                    tick={{ fontSize: 12 }}
+                    label={{ 
+                      value: '交易筆數', 
+                      angle: -90, 
+                      position: 'insideLeft',
+                      style: { textAnchor: 'middle' }
+                    }}
+                  />
+                  <Tooltip content={<CustomMonthlyTooltip />} />
+                  
+                  {/* 根據分組動態渲染折線 */}
+                  {monthlyTransactionData.groupKeys.map((groupKey, index) => {
+                    // 為不同的折線定義不同顏色
+                    const colors = ['#ff7c7c', '#52c41a', '#1890ff', '#fa8c16', '#722ed1'];
+                    const color = colors[index % colors.length];
+                    
+                    return (
+                      <Line 
+                        key={groupKey}
+                        type="monotone" 
+                        dataKey={groupKey}
+                        stroke={color}
+                        strokeWidth={3}
+                        dot={{ fill: color, strokeWidth: 2, r: 5 }}
+                        activeDot={{ r: 7, stroke: color, strokeWidth: 2, fill: '#fff' }}
+                        connectNulls={false}
+                      />
+                    );
+                  })}
+                </LineChart>
+              </ResponsiveContainer>
+              
+              {/* 動態折線圖圖例 */}
+              <div className="flex justify-center mt-3 flex-wrap gap-4">
+                {monthlyTransactionData.groupKeys.map((groupKey, index) => {
+                  const colors = ['#ff7c7c', '#52c41a', '#1890ff', '#fa8c16', '#722ed1'];
+                  const color = colors[index % colors.length];
+                  
+                  return (
+                    <div key={groupKey} className="flex items-center">
+                      <div 
+                        className="w-3 h-3 rounded-full mr-2" 
+                        style={{ backgroundColor: color }}
+                      ></div>
+                      <span className="text-sm text-gray-600">{groupKey}</span>
+                    </div>
+                  );
+                })}
+              </div>
             </div>
           )}
 

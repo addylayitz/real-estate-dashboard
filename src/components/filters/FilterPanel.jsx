@@ -1,4 +1,4 @@
-// src/components/filters/FilterPanel.jsx - 強制水平佈局版本
+// src/components/filters/FilterPanel.jsx - 建案多選版本
 import { Card, Select, DatePicker, InputNumber, Button, Space, Tag, message } from 'antd';
 import { SearchOutlined, ClearOutlined } from '@ant-design/icons';
 import { useStore } from '../../store/useStore';
@@ -22,14 +22,14 @@ const FilterPanel = () => {
   // 修正：確保初始狀態正確，支援陣列格式
   const [localFilters, setLocalFilters] = useState(() => ({
     city: '',
-    district: [], // 改為陣列支援複選
-    project: '',
-    roomType: [], // 改為陣列支援複選
+    district: [],
+    project: [], // 改為陣列支援複選
+    roomType: [],
     startDate: '',
     endDate: '',
     minPrice: '',
     maxPrice: '',
-    ...filters // 合併外部 filters
+    ...filters
   }));
 
   // 同步外部 filters 到本地狀態
@@ -39,18 +39,20 @@ const FilterPanel = () => {
       ...prev,
       ...filters,
       // 確保陣列格式
-      district: Array.isArray(filters.district) ? filters.district : (filters.district ? [filters.district] : []),
-      roomType: Array.isArray(filters.roomType) ? filters.roomType : (filters.roomType ? [filters.roomType] : [])
+      district: Array.isArray(filters.district) ? filters.district : (filters.district ? filters.district.split(',').filter(d => d.trim()) : []),
+      project: Array.isArray(filters.project) ? filters.project : (filters.project ? filters.project.split(',').filter(p => p.trim()) : []),
+      roomType: Array.isArray(filters.roomType) ? filters.roomType : (filters.roomType ? filters.roomType.split(',').filter(rt => rt.trim()) : [])
     }));
   }, [filters]);
 
-  // 處理篩選條件變更 - 修正：立即更新本地狀態
+  // 處理篩選條件變更
   const handleFilterChange = (key, value) => {
     console.log(`[FilterPanel] 變更 ${key}:`, value);
     
     // 複選欄位的數量限制檢查
-    if ((key === 'district' || key === 'roomType') && Array.isArray(value) && value.length > 3) {
-      message.warning(`${key === 'district' ? '區域' : '房型'}最多只能選擇 3 項`);
+    if ((key === 'district' || key === 'roomType' || key === 'project') && Array.isArray(value) && value.length > 3) {
+      const fieldName = key === 'district' ? '區域' : key === 'roomType' ? '房型' : '建案';
+      message.warning(`${fieldName}最多只能選擇 3 項`);
       return;
     }
     
@@ -71,6 +73,9 @@ const FilterPanel = () => {
       district: Array.isArray(localFilters.district) && localFilters.district.length > 0 
         ? localFilters.district.join(',') 
         : '',
+      project: Array.isArray(localFilters.project) && localFilters.project.length > 0 
+        ? localFilters.project.join(',') 
+        : '',
       roomType: Array.isArray(localFilters.roomType) && localFilters.roomType.length > 0 
         ? localFilters.roomType.join(',') 
         : ''
@@ -84,7 +89,7 @@ const FilterPanel = () => {
     const defaultFilters = {
       city: '',
       district: [],
-      project: '',
+      project: [],
       roomType: [],
       startDate: '',
       endDate: '',
@@ -119,11 +124,6 @@ const FilterPanel = () => {
       return [];
     }
     
-    // 檢查資料中實際的城市 ID
-    const availableCities = [...new Set(allData.map(item => item.city))];
-    console.log('[FilterPanel] 資料中可用的城市 ID:', availableCities.slice(0, 10));
-    console.log('[FilterPanel] 選擇的城市 ID:', localFilters.city);
-    
     const cityData = allData.filter(item => item.city === localFilters.city);
     console.log('[FilterPanel] 該城市資料筆數:', cityData.length);
     
@@ -138,7 +138,7 @@ const FilterPanel = () => {
     return districts.sort(safeStringSort).slice(0, 50);
   };
 
-  // 取得建案選項（根據選中的城市和區域）
+  // 取得建案選項（根據選中的城市和區域）- 新增多選支援
   const getProjectOptions = () => {
     if (!allData) return [];
     
@@ -153,6 +153,7 @@ const FilterPanel = () => {
     }
     
     const projects = [...new Set(projectData.map(item => item.project).filter(item => item && String(item).trim()))];
+    console.log('[FilterPanel] 可選建案數量:', projects.length);
     return projects.sort(safeStringSort).slice(0, 100);
   };
 
@@ -170,17 +171,9 @@ const FilterPanel = () => {
     return roomTypes.sort(safeStringSort).slice(0, 20);
   };
 
-  // 除錯：顯示目前狀態
-  console.log('[FilterPanel] 目前狀態:', {
-    localFilters,
-    externalFilters: filters,
-    hasOptions: !!options.cities,
-    optionsCount: options.cities?.length
-  });
-
   return (
     <Card title="篩選條件" className="mb-6">
-      {/* 強制內聯樣式確保水平佈局 */}
+      {/* 強制內容樣式確保水平佈局 */}
       <div style={{ display: 'block' }}>
         {/* 第一行：所有篩選欄位 */}
         <div style={{ 
@@ -207,11 +200,10 @@ const FilterPanel = () => {
               value={localFilters.city || undefined}
               onChange={(value) => {
                 console.log('[FilterPanel] 選擇城市原始值:', value);
-                console.log('[FilterPanel] 選擇城市類型:', typeof value);
                 handleFilterChange('city', value || '');
                 // 清除下級選項
                 handleFilterChange('district', []);
-                handleFilterChange('project', '');
+                handleFilterChange('project', []);
               }}
               showSearch
               optionFilterProp="children"
@@ -246,7 +238,7 @@ const FilterPanel = () => {
                 console.log('[FilterPanel] 選擇區域:', value);
                 handleFilterChange('district', value || []);
                 // 清除下級選項
-                handleFilterChange('project', '');
+                handleFilterChange('project', []);
               }}
               showSearch
               optionFilterProp="children"
@@ -263,8 +255,8 @@ const FilterPanel = () => {
             </Select>
           </div>
 
-          {/* 建案選擇 */}
-          <div style={{ minWidth: '140px', flexShrink: 0 }}>
+          {/* 建案選擇 - 新增多選功能 */}
+          <div style={{ minWidth: '160px', flexShrink: 0 }}>
             <label style={{ 
               display: 'block', 
               fontSize: '14px', 
@@ -272,20 +264,23 @@ const FilterPanel = () => {
               color: '#374151', 
               marginBottom: '4px' 
             }}>
-              建案
+              建案 ({localFilters.project?.length || 0}/3)
             </label>
             <Select
+              mode="multiple"
               placeholder="選擇建案"
-              style={{ width: '140px' }}
-              value={localFilters.project || undefined}
+              style={{ width: '160px' }}
+              value={localFilters.project || []}
               onChange={(value) => {
                 console.log('[FilterPanel] 選擇建案:', value);
-                handleFilterChange('project', value || '');
+                handleFilterChange('project', value || []);
               }}
               showSearch
               optionFilterProp="children"
               disabled={!dataLoaded}
               allowClear
+              maxTagCount={1}
+              maxTagPlaceholder={(omittedValues) => `+${omittedValues.length}`}
             >
               {getProjectOptions().map(project => (
                 <Option key={project} value={project}>
@@ -436,8 +431,8 @@ const FilterPanel = () => {
           </div>
         </div>
 
-        {/* 已選擇的複選項目顯示 */}
-        {(localFilters.district?.length > 0 || localFilters.roomType?.length > 0) && (
+        {/* 已選擇的複選項目顯示 - 新增建案顯示 */}
+        {(localFilters.district?.length > 0 || localFilters.project?.length > 0 || localFilters.roomType?.length > 0) && (
           <div style={{ 
             marginBottom: '16px', 
             padding: '12px', 
@@ -465,6 +460,19 @@ const FilterPanel = () => {
                   }}
                 >
                   📍 {district}
+                </Tag>
+              ))}
+              {localFilters.project?.map(project => (
+                <Tag 
+                  key={project} 
+                  color="purple" 
+                  closable 
+                  onClose={() => {
+                    const newProjects = localFilters.project.filter(p => p !== project);
+                    handleFilterChange('project', newProjects);
+                  }}
+                >
+                  🏗️ {project}
                 </Tag>
               ))}
               {localFilters.roomType?.map(roomType => (
@@ -512,6 +520,7 @@ const FilterPanel = () => {
           <div>除錯資訊:</div>
           <div>• 選中城市: '{localFilters.city}' (長度: {localFilters.city?.length || 0})</div>
           <div>• 選中區域: {JSON.stringify(localFilters.district)} (數量: {localFilters.district?.length || 0})</div>
+          <div>• 選中建案: {JSON.stringify(localFilters.project)} (數量: {localFilters.project?.length || 0})</div>
           <div>• 選中房型: {JSON.stringify(localFilters.roomType)} (數量: {localFilters.roomType?.length || 0})</div>
           <div>• 可用區域數: {getDistrictOptions().length}</div>
           <div>• 可用建案數: {getProjectOptions().length}</div>

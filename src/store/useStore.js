@@ -1,4 +1,4 @@
-// src/store/useStore.js - 支援複選優化版本
+// src/store/useStore.js - 支援建案多選版本
 import { create } from 'zustand';
 import { dataService } from '../services/DataService';
 
@@ -9,11 +9,11 @@ export const useStore = create((set, get) => ({
   loading: false,
   dataLoaded: false,
   
-  // 篩選條件
+  // 篩選條件 - 修改 project 為陣列格式
   filters: {
     city: '',
     district: '',
-    project: '',
+    project: '', // 保持字串格式以相容現有系統
     roomType: '',
     startDate: '',
     endDate: '',
@@ -70,9 +70,9 @@ export const useStore = create((set, get) => ({
     }
   },
 
-  // 增強的篩選資料方法 - 支援複選
+  // 增強的篩選資料方法 - 支援建案多選
   filterDataWithMultiSelect: (data, filters) => {
-    console.log('[useStore] 開始篩選資料，支援複選:', filters);
+    console.log('[useStore] 開始篩選資料，支援建案多選:', filters);
     
     if (!data || data.length === 0) {
       console.log('[useStore] 沒有資料可篩選');
@@ -96,10 +96,13 @@ export const useStore = create((set, get) => ({
       }
     }
 
-    // 建案篩選
+    // 建案篩選 - 新增多選支援
     if (filters.project && filters.project.trim() !== '') {
-      filtered = filtered.filter(item => item.project === filters.project);
-      console.log(`[useStore] 建案篩選後: ${filtered.length} 筆`);
+      const projects = filters.project.split(',').map(p => p.trim()).filter(p => p);
+      if (projects.length > 0) {
+        filtered = filtered.filter(item => projects.includes(item.project));
+        console.log(`[useStore] 建案篩選後 (${projects.join(', ')}): ${filtered.length} 筆`);
+      }
     }
 
     // 房型篩選 - 支援複選（逗號分隔）
