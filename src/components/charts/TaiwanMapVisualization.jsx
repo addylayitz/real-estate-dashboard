@@ -1,6 +1,6 @@
-// src/components/charts/TaiwanMapVisualization.jsx - 台灣地圖視覺化
+// src/components/charts/TaiwanMapVisualization.jsx - 台灣地圖視覺化（動態統計版）
 import React, { useEffect, useRef, useState, useMemo } from 'react';
-import { Card, Spin, Select, Radio, Statistic, Row, Col, message } from 'antd';
+import { Card, Spin, Select, Radio, message } from 'antd';
 import { useStore } from '../../store/useStore';
 
 const { Option } = Select;
@@ -41,11 +41,9 @@ const TaiwanMapVisualization = () => {
     'lienchiang': { lat: 26.1972, lng: 119.9408, name: '連江縣' }
   };
 
-  // 計算地圖數據
+  // 計算地圖數據（用於地圖顯示，使用 allData）
   const mapData = useMemo(() => {
     if (!allData || allData.length === 0) return [];
-
-    console.log('[TaiwanMap] 計算地圖數據');
     
     const cityStats = {};
     
@@ -100,6 +98,46 @@ const TaiwanMapVisualization = () => {
     return mapDataArray;
   }, [allData, filters.city]);
 
+  // 🎯 新增：計算統計數據（基於 filteredData，跟隨篩選變化）
+  const statistics = useMemo(() => {
+    // 如果沒有篩選數據，使用全部數據
+    const dataToUse = (filteredData && filteredData.length > 0) ? filteredData : allData;
+    
+    if (!dataToUse || dataToUse.length === 0) return null;
+
+    // 計算城市統計
+    const cityStats = {};
+    dataToUse.forEach(item => {
+      if (!item.city || !item.totalPrice || item.totalPrice <= 0) return;
+      
+      const cityKey = item.city;
+      if (!cityStats[cityKey]) {
+        cityStats[cityKey] = {
+          cityKey,
+          cityName: cityCoordinates[cityKey]?.name || cityKey,
+          volume: 0,
+          totalSales: 0
+        };
+      }
+      cityStats[cityKey].volume++;
+      cityStats[cityKey].totalSales += item.totalPrice;
+    });
+
+    const cities = Object.values(cityStats);
+    const totalVolume = cities.reduce((sum, city) => sum + city.volume, 0);
+    const totalSales = cities.reduce((sum, city) => sum + city.totalSales, 0);
+    const maxVolumeCity = cities.length > 0 
+      ? cities.reduce((max, city) => city.volume > max.volume ? city : max, cities[0])
+      : null;
+
+    return {
+      cityCount: cities.length,
+      totalVolume,
+      totalSales: Math.round(totalSales / 10000),
+      maxVolumeCity
+    };
+  }, [filteredData, allData]);
+
   // 簡化的 Leaflet 載入
   const ensureLeafletLoaded = () => {
     return new Promise((resolve) => {
@@ -109,7 +147,6 @@ const TaiwanMapVisualization = () => {
         return;
       }
 
-      // 檢查是否已經有載入中的腳本
       if (document.querySelector('script[src*="leaflet"]')) {
         const checkInterval = setInterval(() => {
           if (window.L) {
@@ -121,7 +158,6 @@ const TaiwanMapVisualization = () => {
         return;
       }
 
-      // 載入 CSS
       if (!document.querySelector('link[href*="leaflet.css"]')) {
         const css = document.createElement('link');
         css.rel = 'stylesheet';
@@ -129,7 +165,6 @@ const TaiwanMapVisualization = () => {
         document.head.appendChild(css);
       }
 
-      // 載入 JS
       const script = document.createElement('script');
       script.src = 'https://unpkg.com/leaflet@1.9.4/dist/leaflet.js';
       script.onload = () => {
@@ -146,11 +181,8 @@ const TaiwanMapVisualization = () => {
 
   // 簡化的地圖初始化
   const initMap = async () => {
-    console.log('[TaiwanMap] 開始初始化地圖');
-    
     if (!mapRef.current) return;
 
-    // 清理現有地圖
     if (mapInstance.current) {
       try {
         mapInstance.current.remove();
@@ -161,7 +193,6 @@ const TaiwanMapVisualization = () => {
     }
 
     try {
-      // 確保 Leaflet 載入
       const loaded = await ensureLeafletLoaded();
       if (!loaded || !window.L) {
         throw new Error('Leaflet 載入失敗');
@@ -169,13 +200,11 @@ const TaiwanMapVisualization = () => {
 
       const container = mapRef.current;
       
-      // 清理容器
       if (container._leaflet_id) {
         delete container._leaflet_id;
       }
       container.innerHTML = '';
 
-      // 創建地圖
       const map = window.L.map(container, {
         center: [23.8, 121.0],
         zoom: 7,
@@ -183,15 +212,12 @@ const TaiwanMapVisualization = () => {
         attributionControl: true
       });
 
-      // 添加圖層
       window.L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
         attribution: '© OpenStreetMap contributors'
       }).addTo(map);
 
       mapInstance.current = map;
       setIsMapLoading(false);
-
-      console.log('[TaiwanMap] 地圖初始化完成');
 
     } catch (error) {
       console.error('[TaiwanMap] 初始化失敗:', error);
@@ -202,11 +228,9 @@ const TaiwanMapVisualization = () => {
 
   // 手動重試
   const handleRetry = () => {
-    console.log('[TaiwanMap] 手動重試');
     setIsMapLoading(true);
     setLeafletReady(false);
     
-    // 簡單清理
     if (mapInstance.current) {
       try {
         mapInstance.current.remove();
@@ -216,7 +240,6 @@ const TaiwanMapVisualization = () => {
       mapInstance.current = null;
     }
 
-    // 重新初始化
     setTimeout(initMap, 500);
   };
 
@@ -253,7 +276,6 @@ const TaiwanMapVisualization = () => {
     const L = window.L;
     const map = mapInstance.current;
 
-    // 清除現有標記
     markersRef.current.forEach(marker => {
       try {
         map.removeLayer(marker);
@@ -263,7 +285,6 @@ const TaiwanMapVisualization = () => {
     });
     markersRef.current = [];
 
-    // 計算數據範圍
     const values = mapData.map(city => {
       switch (dataMetric) {
         case 'volume': return city.volume;
@@ -276,7 +297,6 @@ const TaiwanMapVisualization = () => {
     const maxValue = Math.max(...values);
     const minValue = Math.min(...values);
 
-    // 添加新標記
     mapData.forEach(city => {
       let value;
       
@@ -338,7 +358,6 @@ const TaiwanMapVisualization = () => {
         });
       }
 
-      // 添加工具提示
       marker.bindTooltip(`
         <div style="text-align: center; font-size: 12px;">
           <strong>${city.cityName}</strong><br/>
@@ -349,7 +368,6 @@ const TaiwanMapVisualization = () => {
         </div>
       `);
 
-      // 點擊事件
       marker.on('click', () => {
         setFilters({
           ...filters,
@@ -365,24 +383,6 @@ const TaiwanMapVisualization = () => {
     });
 
   }, [mapData, mapStyle, dataMetric, filters, setFilters, isMapLoading]);
-
-  // 統計數據
-  const statistics = useMemo(() => {
-    if (mapData.length === 0) return null;
-
-    const totalVolume = mapData.reduce((sum, city) => sum + city.volume, 0);
-    const totalSales = mapData.reduce((sum, city) => sum + city.totalSales, 0);
-    const avgPrice = totalVolume > 0 ? mapData.reduce((sum, city) => sum + city.avgPrice, 0) / mapData.length : 0;
-    const maxVolumeCity = mapData.reduce((max, city) => city.volume > max.volume ? city : max, mapData[0]);
-
-    return {
-      cityCount: mapData.length,
-      totalVolume,
-      totalSales,
-      avgPrice: Math.round(avgPrice),
-      maxVolumeCity
-    };
-  }, [mapData]);
 
   if (loading) {
     return (
@@ -428,39 +428,324 @@ const TaiwanMapVisualization = () => {
           </div>
         </div>
 
-        {/* 統計摘要 */}
+        {/* 🎯 動態統計卡片 - 會跟隨篩選結果變化 */}
         {statistics && (
-          <Row gutter={16} className="mb-4">
-            <Col span={6}>
-              <Statistic
-                title="覆蓋城市"
-                value={statistics.cityCount}
-                suffix="個"
-              />
-            </Col>
-            <Col span={6}>
-              <Statistic
-                title="總交易量"
-                value={statistics.totalVolume}
-                suffix="筆"
-              />
-            </Col>
-            <Col span={6}>
-              <Statistic
-                title="總銷售額"
-                value={statistics.totalSales}
-                suffix="萬"
-                formatter={(value) => `${(value / 10000).toFixed(1)}億`}
-              />
-            </Col>
-            <Col span={6}>
-              <Statistic
-                title="交易最熱城市"
-                value={statistics.maxVolumeCity ? statistics.maxVolumeCity.cityName : '無'}
-                suffix={statistics.maxVolumeCity ? `(${statistics.maxVolumeCity.volume}筆)` : ''}
-              />
-            </Col>
-          </Row>
+          <div style={{ 
+            display: 'grid', 
+            gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))',
+            gap: '12px',
+            marginBottom: '20px'
+          }}>
+            {/* 卡片 1：覆蓋城市 */}
+            <div
+              style={{
+                background: 'linear-gradient(135deg, #3b82f6 0%, #2563eb 100%)',
+                borderRadius: '12px',
+                padding: '16px',
+                color: 'white',
+                position: 'relative',
+                overflow: 'hidden',
+                boxShadow: '0 4px 6px -1px rgba(59, 130, 246, 0.3)',
+                transition: 'all 0.3s ease',
+                cursor: 'default'
+              }}
+              onMouseEnter={(e) => {
+                e.currentTarget.style.transform = 'translateY(-2px)';
+                e.currentTarget.style.boxShadow = '0 10px 15px -3px rgba(59, 130, 246, 0.4)';
+              }}
+              onMouseLeave={(e) => {
+                e.currentTarget.style.transform = 'translateY(0)';
+                e.currentTarget.style.boxShadow = '0 4px 6px -1px rgba(59, 130, 246, 0.3)';
+              }}
+            >
+              <div style={{
+                position: 'absolute',
+                top: '-50%',
+                right: '-20%',
+                width: '150px',
+                height: '150px',
+                background: 'rgba(255, 255, 255, 0.1)',
+                borderRadius: '50%',
+                filter: 'blur(30px)'
+              }} />
+              
+              <div style={{
+                width: '40px',
+                height: '40px',
+                borderRadius: '8px',
+                background: 'rgba(255, 255, 255, 0.2)',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                fontSize: '20px',
+                marginBottom: '12px',
+                backdropFilter: 'blur(10px)'
+              }}>
+                📍
+              </div>
+              
+              <div style={{
+                fontSize: '12px',
+                opacity: 0.9,
+                marginBottom: '6px',
+                fontWeight: '500'
+              }}>
+                覆蓋城市
+              </div>
+              
+              <div style={{
+                fontSize: '28px',
+                fontWeight: '700',
+                marginBottom: '2px',
+                display: 'flex',
+                alignItems: 'baseline',
+                gap: '6px'
+              }}>
+                {statistics.cityCount}
+                <span style={{ fontSize: '14px', opacity: 0.8 }}>個</span>
+              </div>
+              
+              <div style={{
+                fontSize: '11px',
+                opacity: 0.8
+              }}>
+                {filteredData && filteredData.length > 0 ? '篩選結果' : '全台灣主要城市'}
+              </div>
+            </div>
+
+            {/* 卡片 2：總交易量 */}
+            <div
+              style={{
+                background: 'linear-gradient(135deg, #10b981 0%, #059669 100%)',
+                borderRadius: '12px',
+                padding: '16px',
+                color: 'white',
+                position: 'relative',
+                overflow: 'hidden',
+                boxShadow: '0 4px 6px -1px rgba(16, 185, 129, 0.3)',
+                transition: 'all 0.3s ease',
+                cursor: 'default'
+              }}
+              onMouseEnter={(e) => {
+                e.currentTarget.style.transform = 'translateY(-2px)';
+                e.currentTarget.style.boxShadow = '0 10px 15px -3px rgba(16, 185, 129, 0.4)';
+              }}
+              onMouseLeave={(e) => {
+                e.currentTarget.style.transform = 'translateY(0)';
+                e.currentTarget.style.boxShadow = '0 4px 6px -1px rgba(16, 185, 129, 0.3)';
+              }}
+            >
+              <div style={{
+                position: 'absolute',
+                top: '-50%',
+                right: '-20%',
+                width: '150px',
+                height: '150px',
+                background: 'rgba(255, 255, 255, 0.1)',
+                borderRadius: '50%',
+                filter: 'blur(30px)'
+              }} />
+              
+              <div style={{
+                width: '40px',
+                height: '40px',
+                borderRadius: '8px',
+                background: 'rgba(255, 255, 255, 0.2)',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                fontSize: '20px',
+                marginBottom: '12px',
+                backdropFilter: 'blur(10px)'
+              }}>
+                📊
+              </div>
+              
+              <div style={{
+                fontSize: '12px',
+                opacity: 0.9,
+                marginBottom: '6px',
+                fontWeight: '500'
+              }}>
+                總交易量
+              </div>
+              
+              <div style={{
+                fontSize: '28px',
+                fontWeight: '700',
+                marginBottom: '2px',
+                display: 'flex',
+                alignItems: 'baseline',
+                gap: '6px'
+              }}>
+                {statistics.totalVolume.toLocaleString()}
+                <span style={{ fontSize: '14px', opacity: 0.8 }}>筆</span>
+              </div>
+              
+              <div style={{
+                fontSize: '11px',
+                opacity: 0.8
+              }}>
+                預售屋交易記錄
+              </div>
+            </div>
+
+            {/* 卡片 3：總銷售額 */}
+            <div
+              style={{
+                background: 'linear-gradient(135deg, #f59e0b 0%, #d97706 100%)',
+                borderRadius: '12px',
+                padding: '16px',
+                color: 'white',
+                position: 'relative',
+                overflow: 'hidden',
+                boxShadow: '0 4px 6px -1px rgba(245, 158, 11, 0.3)',
+                transition: 'all 0.3s ease',
+                cursor: 'default'
+              }}
+              onMouseEnter={(e) => {
+                e.currentTarget.style.transform = 'translateY(-2px)';
+                e.currentTarget.style.boxShadow = '0 10px 15px -3px rgba(245, 158, 11, 0.4)';
+              }}
+              onMouseLeave={(e) => {
+                e.currentTarget.style.transform = 'translateY(0)';
+                e.currentTarget.style.boxShadow = '0 4px 6px -1px rgba(245, 158, 11, 0.3)';
+              }}
+            >
+              <div style={{
+                position: 'absolute',
+                top: '-50%',
+                right: '-20%',
+                width: '150px',
+                height: '150px',
+                background: 'rgba(255, 255, 255, 0.1)',
+                borderRadius: '50%',
+                filter: 'blur(30px)'
+              }} />
+              
+              <div style={{
+                width: '40px',
+                height: '40px',
+                borderRadius: '8px',
+                background: 'rgba(255, 255, 255, 0.2)',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                fontSize: '20px',
+                marginBottom: '12px',
+                backdropFilter: 'blur(10px)'
+              }}>
+                💰
+              </div>
+              
+              <div style={{
+                fontSize: '12px',
+                opacity: 0.9,
+                marginBottom: '6px',
+                fontWeight: '500'
+              }}>
+                總銷售額
+              </div>
+              
+              <div style={{
+                fontSize: '28px',
+                fontWeight: '700',
+                marginBottom: '2px',
+                display: 'flex',
+                alignItems: 'baseline',
+                gap: '6px'
+              }}>
+                {(statistics.totalSales / 10000).toFixed(1)}
+                <span style={{ fontSize: '14px', opacity: 0.8 }}>億萬</span>
+              </div>
+              
+              <div style={{
+                fontSize: '11px',
+                opacity: 0.8
+              }}>
+                累計交易金額
+              </div>
+            </div>
+
+            {/* 卡片 4：交易最熱城市 */}
+            <div
+              style={{
+                background: 'linear-gradient(135deg, #8b5cf6 0%, #7c3aed 100%)',
+                borderRadius: '12px',
+                padding: '16px',
+                color: 'white',
+                position: 'relative',
+                overflow: 'hidden',
+                boxShadow: '0 4px 6px -1px rgba(139, 92, 246, 0.3)',
+                transition: 'all 0.3s ease',
+                cursor: 'default'
+              }}
+              onMouseEnter={(e) => {
+                e.currentTarget.style.transform = 'translateY(-2px)';
+                e.currentTarget.style.boxShadow = '0 10px 15px -3px rgba(139, 92, 246, 0.4)';
+              }}
+              onMouseLeave={(e) => {
+                e.currentTarget.style.transform = 'translateY(0)';
+                e.currentTarget.style.boxShadow = '0 4px 6px -1px rgba(139, 92, 246, 0.3)';
+              }}
+            >
+              <div style={{
+                position: 'absolute',
+                top: '-50%',
+                right: '-20%',
+                width: '150px',
+                height: '150px',
+                background: 'rgba(255, 255, 255, 0.1)',
+                borderRadius: '50%',
+                filter: 'blur(30px)'
+              }} />
+              
+              <div style={{
+                width: '40px',
+                height: '40px',
+                borderRadius: '8px',
+                background: 'rgba(255, 255, 255, 0.2)',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                fontSize: '20px',
+                marginBottom: '12px',
+                backdropFilter: 'blur(10px)'
+              }}>
+                🏆
+              </div>
+              
+              <div style={{
+                fontSize: '12px',
+                opacity: 0.9,
+                marginBottom: '6px',
+                fontWeight: '500'
+              }}>
+                交易最熱城市
+              </div>
+              
+              <div style={{
+                fontSize: '28px',
+                fontWeight: '700',
+                marginBottom: '2px',
+                display: 'flex',
+                alignItems: 'baseline',
+                gap: '6px',
+                whiteSpace: 'nowrap',
+                overflow: 'hidden',
+                textOverflow: 'ellipsis'
+              }}>
+                {statistics.maxVolumeCity ? statistics.maxVolumeCity.cityName : '無'}
+              </div>
+              
+              <div style={{
+                fontSize: '11px',
+                opacity: 0.8
+              }}>
+                {statistics.maxVolumeCity ? `${statistics.maxVolumeCity.volume.toLocaleString()} 筆交易` : '暫無數據'}
+              </div>
+            </div>
+          </div>
         )}
 
         {/* 地圖容器 */}
@@ -502,7 +787,7 @@ const TaiwanMapVisualization = () => {
             <li>地圖顯示全台各城市的房地產交易數據</li>
             <li>顏色深淺和圓點大小代表數據強度（紅色表示當前選中的城市）</li>
             <li>滑鼠懸停可查看詳細資訊，點擊可篩選該城市</li>
-            <li>可切換不同的顯示方式和數據指標</li>
+            <li>統計卡片會根據篩選條件自動更新數據</li>
           </ul>
         </div>
       </div>

@@ -1,6 +1,6 @@
-// src/components/filters/FilterPanel.jsx - 建案多選版本
-import { Card, Select, DatePicker, InputNumber, Button, Space, Tag, message } from 'antd';
-import { SearchOutlined, ClearOutlined } from '@ant-design/icons';
+// src/components/filters/FilterPanel.jsx - 現代商務風版本
+import { Select, DatePicker, InputNumber, Button, Tag, message } from 'antd';
+import { SearchOutlined, ClearOutlined, FilterOutlined } from '@ant-design/icons';
 import { useStore } from '../../store/useStore';
 import { useState, useEffect } from 'react';
 import dayjs from 'dayjs';
@@ -19,11 +19,10 @@ const FilterPanel = () => {
     dataLoaded 
   } = useStore();
 
-  // 修正：確保初始狀態正確，支援陣列格式
   const [localFilters, setLocalFilters] = useState(() => ({
     city: '',
     district: [],
-    project: [], // 改為陣列支援複選
+    project: [],
     roomType: [],
     startDate: '',
     endDate: '',
@@ -34,11 +33,9 @@ const FilterPanel = () => {
 
   // 同步外部 filters 到本地狀態
   useEffect(() => {
-    console.log('[FilterPanel] 外部 filters 變更:', filters);
     setLocalFilters(prev => ({
       ...prev,
       ...filters,
-      // 確保陣列格式
       district: Array.isArray(filters.district) ? filters.district : (filters.district ? filters.district.split(',').filter(d => d.trim()) : []),
       project: Array.isArray(filters.project) ? filters.project : (filters.project ? filters.project.split(',').filter(p => p.trim()) : []),
       roomType: Array.isArray(filters.roomType) ? filters.roomType : (filters.roomType ? filters.roomType.split(',').filter(rt => rt.trim()) : [])
@@ -47,29 +44,19 @@ const FilterPanel = () => {
 
   // 處理篩選條件變更
   const handleFilterChange = (key, value) => {
-    console.log(`[FilterPanel] 變更 ${key}:`, value);
-    
-    // 複選欄位的數量限制檢查
     if ((key === 'district' || key === 'roomType' || key === 'project') && Array.isArray(value) && value.length > 3) {
       const fieldName = key === 'district' ? '區域' : key === 'roomType' ? '房型' : '建案';
       message.warning(`${fieldName}最多只能選擇 3 項`);
       return;
     }
     
-    setLocalFilters(prev => {
-      const newFilters = { ...prev, [key]: value };
-      console.log('[FilterPanel] 新的 localFilters:', newFilters);
-      return newFilters;
-    });
+    setLocalFilters(prev => ({ ...prev, [key]: value }));
   };
 
   // 應用篩選條件
   const handleApplyFilters = () => {
-    console.log('[FilterPanel] 應用篩選條件:', localFilters);
-    // 轉換陣列為字串格式以相容現有系統
     const adaptedFilters = {
       ...localFilters,
-      // 如果是陣列且有值，轉為逗號分隔的字串；否則保持空字串
       district: Array.isArray(localFilters.district) && localFilters.district.length > 0 
         ? localFilters.district.join(',') 
         : '',
@@ -81,11 +68,11 @@ const FilterPanel = () => {
         : ''
     };
     setFilters(adaptedFilters);
+    message.success('篩選條件已應用');
   };
 
   // 清除篩選條件
   const handleClearFilters = () => {
-    console.log('[FilterPanel] 清除篩選條件');
     const defaultFilters = {
       city: '',
       district: [],
@@ -98,6 +85,7 @@ const FilterPanel = () => {
     };
     setLocalFilters(defaultFilters);
     clearFilters();
+    message.info('已清除所有篩選條件');
   };
 
   // 安全的字串排序函數
@@ -107,101 +95,133 @@ const FilterPanel = () => {
     return strA.localeCompare(strB, 'zh-TW');
   };
 
-  // 取得區域選項（根據選中的城市）
+  // 取得區域選項
   const getDistrictOptions = () => {
-    console.log('[FilterPanel] getDistrictOptions 被呼叫:', {
-      selectedCity: localFilters.city,
-      hasAllData: !!allData,
-      allDataLength: allData?.length
-    });
-
-    if (!localFilters.city || !allData) {
-      console.log('[FilterPanel] 無法取得區域選項:', { 
-        city: localFilters.city, 
-        hasData: !!allData,
-        reason: !localFilters.city ? '沒有選擇城市' : '沒有資料'
-      });
-      return [];
-    }
-    
+    if (!localFilters.city || !allData) return [];
     const cityData = allData.filter(item => item.city === localFilters.city);
-    console.log('[FilterPanel] 該城市資料筆數:', cityData.length);
-    
-    if (cityData.length === 0) {
-      console.warn('[FilterPanel] 找不到該城市的資料，可能城市 ID 不符');
-      return [];
-    }
-    
     const districts = [...new Set(cityData.map(item => item.district).filter(item => item && String(item).trim()))];
-    console.log('[FilterPanel] 該城市區域:', districts.slice(0, 10));
-    
     return districts.sort(safeStringSort).slice(0, 50);
   };
 
-  // 取得建案選項（根據選中的城市和區域）- 新增多選支援
+  // 取得建案選項
   const getProjectOptions = () => {
     if (!allData) return [];
-    
     let projectData = allData;
-    
     if (localFilters.city) {
       projectData = projectData.filter(item => item.city === localFilters.city);
     }
-    
     if (localFilters.district && localFilters.district.length > 0) {
       projectData = projectData.filter(item => localFilters.district.includes(item.district));
     }
-    
     const projects = [...new Set(projectData.map(item => item.project).filter(item => item && String(item).trim()))];
-    console.log('[FilterPanel] 可選建案數量:', projects.length);
     return projects.sort(safeStringSort).slice(0, 100);
   };
 
-  // 取得房型選項（根據選中的城市）
+  // 取得房型選項
   const getRoomTypeOptions = () => {
     if (!allData) return options.roomTypes || [];
-    
     let roomTypeData = allData;
-    
     if (localFilters.city) {
       roomTypeData = roomTypeData.filter(item => item.city === localFilters.city);
     }
-    
     const roomTypes = [...new Set(roomTypeData.map(item => item.roomType).filter(item => item && String(item).trim()))];
     return roomTypes.sort(safeStringSort).slice(0, 20);
   };
 
   return (
-    <Card title="篩選條件" className="mb-6">
-      {/* 強制內容樣式確保水平佈局 */}
-      <div style={{ display: 'block' }}>
-        {/* 第一行：所有篩選欄位 */}
+    <div 
+      style={{
+        background: 'white',
+        borderRadius: '16px',
+        padding: '28px',
+        boxShadow: '0 10px 15px -3px rgba(0, 0, 0, 0.1), 0 4px 6px -2px rgba(0, 0, 0, 0.05)',
+        border: '2px solid transparent',
+        transition: 'all 0.3s ease',
+      }}
+      onMouseEnter={(e) => {
+        e.currentTarget.style.borderColor = '#93c5fd';
+        e.currentTarget.style.boxShadow = '0 20px 25px -5px rgba(59, 130, 246, 0.1), 0 10px 10px -5px rgba(59, 130, 246, 0.04)';
+      }}
+      onMouseLeave={(e) => {
+        e.currentTarget.style.borderColor = 'transparent';
+        e.currentTarget.style.boxShadow = '0 10px 15px -3px rgba(0, 0, 0, 0.1), 0 4px 6px -2px rgba(0, 0, 0, 0.05)';
+      }}
+    >
+      {/* 標題區域 */}
+      <div style={{ 
+        display: 'flex', 
+        alignItems: 'center', 
+        marginBottom: '24px',
+        paddingBottom: '16px',
+        borderBottom: '2px solid #f1f5f9'
+      }}>
+        <div style={{
+          width: '40px',
+          height: '40px',
+          borderRadius: '10px',
+          background: 'linear-gradient(135deg, #3b82f6 0%, #2563eb 100%)',
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+          marginRight: '12px',
+          color: 'white',
+          fontSize: '20px'
+        }}>
+          <FilterOutlined />
+        </div>
+        <div>
+          <h3 style={{ 
+            margin: 0, 
+            fontSize: '18px', 
+            fontWeight: '600', 
+            color: '#1e293b' 
+          }}>
+            篩選條件
+          </h3>
+          <p style={{ 
+            margin: '2px 0 0 0', 
+            fontSize: '13px', 
+            color: '#64748b' 
+          }}>
+            設定分析條件以精準查詢數據
+          </p>
+        </div>
+      </div>
+
+      {/* 第一排：主要篩選 */}
+      <div style={{ marginBottom: '20px' }}>
+        <div style={{
+          fontSize: '13px',
+          fontWeight: '600',
+          color: '#475569',
+          marginBottom: '12px',
+          textTransform: 'uppercase',
+          letterSpacing: '0.5px'
+        }}>
+          📍 主要篩選
+        </div>
         <div style={{ 
-          display: 'flex', 
-          flexWrap: 'wrap', 
-          gap: '12px', 
-          alignItems: 'flex-end',
-          marginBottom: '16px'
+          display: 'grid',
+          gridTemplateColumns: 'repeat(auto-fit, minmax(160px, 1fr))',
+          gap: '16px',
         }}>
           {/* 縣市選擇 */}
-          <div style={{ minWidth: '140px', flexShrink: 0 }}>
+          <div>
             <label style={{ 
               display: 'block', 
-              fontSize: '14px', 
+              fontSize: '13px', 
               fontWeight: '500', 
-              color: '#374151', 
-              marginBottom: '4px' 
+              color: '#475569', 
+              marginBottom: '6px' 
             }}>
               縣市
             </label>
             <Select
               placeholder="選擇縣市"
-              style={{ width: '140px' }}
+              style={{ width: '100%' }}
               value={localFilters.city || undefined}
               onChange={(value) => {
-                console.log('[FilterPanel] 選擇城市原始值:', value);
                 handleFilterChange('city', value || '');
-                // 清除下級選項
                 handleFilterChange('district', []);
                 handleFilterChange('project', []);
               }}
@@ -218,26 +238,37 @@ const FilterPanel = () => {
             </Select>
           </div>
 
-          {/* 區域選擇 - 複選版本 */}
-          <div style={{ minWidth: '160px', flexShrink: 0 }}>
+          {/* 區域選擇 */}
+          <div>
             <label style={{ 
               display: 'block', 
-              fontSize: '14px', 
+              fontSize: '13px', 
               fontWeight: '500', 
-              color: '#374151', 
-              marginBottom: '4px' 
+              color: '#475569', 
+              marginBottom: '6px',
+              display: 'flex',
+              alignItems: 'center',
+              gap: '6px'
             }}>
-              區域 ({localFilters.district?.length || 0}/3)
+              區域
+              <span style={{
+                fontSize: '11px',
+                backgroundColor: localFilters.district?.length > 0 ? '#f59e0b' : '#e2e8f0',
+                color: localFilters.district?.length > 0 ? 'white' : '#64748b',
+                padding: '2px 6px',
+                borderRadius: '4px',
+                fontWeight: '600'
+              }}>
+                {localFilters.district?.length || 0}/3
+              </span>
             </label>
             <Select
               mode="multiple"
               placeholder="選擇區域"
-              style={{ width: '160px' }}
+              style={{ width: '100%' }}
               value={localFilters.district || []}
               onChange={(value) => {
-                console.log('[FilterPanel] 選擇區域:', value);
                 handleFilterChange('district', value || []);
-                // 清除下級選項
                 handleFilterChange('project', []);
               }}
               showSearch
@@ -255,26 +286,36 @@ const FilterPanel = () => {
             </Select>
           </div>
 
-          {/* 建案選擇 - 新增多選功能 */}
-          <div style={{ minWidth: '160px', flexShrink: 0 }}>
+          {/* 建案選擇 */}
+          <div>
             <label style={{ 
               display: 'block', 
-              fontSize: '14px', 
+              fontSize: '13px', 
               fontWeight: '500', 
-              color: '#374151', 
-              marginBottom: '4px' 
+              color: '#475569', 
+              marginBottom: '6px',
+              display: 'flex',
+              alignItems: 'center',
+              gap: '6px'
             }}>
-              建案 ({localFilters.project?.length || 0}/3)
+              建案
+              <span style={{
+                fontSize: '11px',
+                backgroundColor: localFilters.project?.length > 0 ? '#8b5cf6' : '#e2e8f0',
+                color: localFilters.project?.length > 0 ? 'white' : '#64748b',
+                padding: '2px 6px',
+                borderRadius: '4px',
+                fontWeight: '600'
+              }}>
+                {localFilters.project?.length || 0}/3
+              </span>
             </label>
             <Select
               mode="multiple"
               placeholder="選擇建案"
-              style={{ width: '160px' }}
+              style={{ width: '100%' }}
               value={localFilters.project || []}
-              onChange={(value) => {
-                console.log('[FilterPanel] 選擇建案:', value);
-                handleFilterChange('project', value || []);
-              }}
+              onChange={(value) => handleFilterChange('project', value || [])}
               showSearch
               optionFilterProp="children"
               disabled={!dataLoaded}
@@ -290,26 +331,36 @@ const FilterPanel = () => {
             </Select>
           </div>
 
-          {/* 房型選擇 - 複選版本 */}
-          <div style={{ minWidth: '140px', flexShrink: 0 }}>
+          {/* 房型選擇 */}
+          <div>
             <label style={{ 
               display: 'block', 
-              fontSize: '14px', 
+              fontSize: '13px', 
               fontWeight: '500', 
-              color: '#374151', 
-              marginBottom: '4px' 
+              color: '#475569', 
+              marginBottom: '6px',
+              display: 'flex',
+              alignItems: 'center',
+              gap: '6px'
             }}>
-              房型 ({localFilters.roomType?.length || 0}/3)
+              房型
+              <span style={{
+                fontSize: '11px',
+                backgroundColor: localFilters.roomType?.length > 0 ? '#10b981' : '#e2e8f0',
+                color: localFilters.roomType?.length > 0 ? 'white' : '#64748b',
+                padding: '2px 6px',
+                borderRadius: '4px',
+                fontWeight: '600'
+              }}>
+                {localFilters.roomType?.length || 0}/3
+              </span>
             </label>
             <Select
               mode="multiple"
               placeholder="選擇房型"
-              style={{ width: '140px' }}
+              style={{ width: '100%' }}
               value={localFilters.roomType || []}
-              onChange={(value) => {
-                console.log('[FilterPanel] 選擇房型:', value);
-                handleFilterChange('roomType', value || []);
-              }}
+              onChange={(value) => handleFilterChange('roomType', value || [])}
               showSearch
               optionFilterProp="children"
               disabled={!dataLoaded}
@@ -325,28 +376,39 @@ const FilterPanel = () => {
             </Select>
           </div>
         </div>
+      </div>
 
-        {/* 第二行：日期、價格和按鈕 */}
+      {/* 第二排：輔助篩選 */}
+      <div style={{ marginBottom: '20px' }}>
+        <div style={{
+          fontSize: '13px',
+          fontWeight: '600',
+          color: '#475569',
+          marginBottom: '12px',
+          textTransform: 'uppercase',
+          letterSpacing: '0.5px'
+        }}>
+          🔧 輔助篩選
+        </div>
         <div style={{ 
-          display: 'flex', 
-          flexWrap: 'wrap', 
-          gap: '12px', 
-          alignItems: 'flex-end',
-          marginBottom: '16px'
+          display: 'grid',
+          gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))',
+          gap: '16px',
+          alignItems: 'end'
         }}>
           {/* 交易日期 */}
-          <div style={{ minWidth: '260px', flexShrink: 0 }}>
+          <div style={{ gridColumn: 'span 2' }}>
             <label style={{ 
               display: 'block', 
-              fontSize: '14px', 
+              fontSize: '13px', 
               fontWeight: '500', 
-              color: '#374151', 
-              marginBottom: '4px' 
+              color: '#475569', 
+              marginBottom: '6px' 
             }}>
               交易日期
             </label>
             <RangePicker
-              style={{ width: '260px' }}
+              style={{ width: '100%' }}
               value={[
                 localFilters.startDate ? dayjs(localFilters.startDate) : null,
                 localFilters.endDate ? dayjs(localFilters.endDate) : null
@@ -366,19 +428,19 @@ const FilterPanel = () => {
           </div>
 
           {/* 最低價格 */}
-          <div style={{ minWidth: '120px', flexShrink: 0 }}>
+          <div>
             <label style={{ 
               display: 'block', 
-              fontSize: '14px', 
+              fontSize: '13px', 
               fontWeight: '500', 
-              color: '#374151', 
-              marginBottom: '4px' 
+              color: '#475569', 
+              marginBottom: '6px' 
             }}>
               最低價格 (萬)
             </label>
             <InputNumber
               placeholder="最低價格"
-              style={{ width: '120px' }}
+              style={{ width: '100%' }}
               value={localFilters.minPrice || undefined}
               onChange={(value) => handleFilterChange('minPrice', value)}
               min={0}
@@ -389,19 +451,19 @@ const FilterPanel = () => {
           </div>
 
           {/* 最高價格 */}
-          <div style={{ minWidth: '120px', flexShrink: 0 }}>
+          <div>
             <label style={{ 
               display: 'block', 
-              fontSize: '14px', 
+              fontSize: '13px', 
               fontWeight: '500', 
-              color: '#374151', 
-              marginBottom: '4px' 
+              color: '#475569', 
+              marginBottom: '6px' 
             }}>
               最高價格 (萬)
             </label>
             <InputNumber
               placeholder="最高價格"
-              style={{ width: '120px' }}
+              style={{ width: '100%' }}
               value={localFilters.maxPrice || undefined}
               onChange={(value) => handleFilterChange('maxPrice', value)}
               min={0}
@@ -410,125 +472,172 @@ const FilterPanel = () => {
               parser={value => value.replace(/\$\s?|(,*)/g, '')}
             />
           </div>
-
-          {/* 操作按鈕 */}
-          <div style={{ marginLeft: 'auto', display: 'flex', gap: '8px' }}>
-            <Button
-              icon={<SearchOutlined />}
-              type="primary"
-              onClick={handleApplyFilters}
-              disabled={!dataLoaded}
-            >
-              查詢分析
-            </Button>
-            <Button
-              icon={<ClearOutlined />}
-              onClick={handleClearFilters}
-              disabled={!dataLoaded}
-            >
-              清除條件
-            </Button>
-          </div>
-        </div>
-
-        {/* 已選擇的複選項目顯示 - 新增建案顯示 */}
-        {(localFilters.district?.length > 0 || localFilters.project?.length > 0 || localFilters.roomType?.length > 0) && (
-          <div style={{ 
-            marginBottom: '16px', 
-            padding: '12px', 
-            backgroundColor: '#EBF8FF', 
-            borderRadius: '8px', 
-            border: '1px solid #BEE3F8' 
-          }}>
-            <div style={{ 
-              fontSize: '14px', 
-              fontWeight: '500', 
-              color: '#374151', 
-              marginBottom: '8px' 
-            }}>
-              已選擇的條件：
-            </div>
-            <div style={{ display: 'flex', flexWrap: 'wrap', gap: '8px' }}>
-              {localFilters.district?.map(district => (
-                <Tag 
-                  key={district} 
-                  color="blue" 
-                  closable 
-                  onClose={() => {
-                    const newDistricts = localFilters.district.filter(d => d !== district);
-                    handleFilterChange('district', newDistricts);
-                  }}
-                >
-                  📍 {district}
-                </Tag>
-              ))}
-              {localFilters.project?.map(project => (
-                <Tag 
-                  key={project} 
-                  color="purple" 
-                  closable 
-                  onClose={() => {
-                    const newProjects = localFilters.project.filter(p => p !== project);
-                    handleFilterChange('project', newProjects);
-                  }}
-                >
-                  🏗️ {project}
-                </Tag>
-              ))}
-              {localFilters.roomType?.map(roomType => (
-                <Tag 
-                  key={roomType} 
-                  color="green" 
-                  closable 
-                  onClose={() => {
-                    const newRoomTypes = localFilters.roomType.filter(rt => rt !== roomType);
-                    handleFilterChange('roomType', newRoomTypes);
-                  }}
-                >
-                  🏠 {roomType}
-                </Tag>
-              ))}
-            </div>
-          </div>
-        )}
-
-        {/* 操作結果和狀態 */}
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-          <div>
-            {filteredData && filteredData.length > 0 && (
-              <Tag color="blue" className="text-sm">
-                📊 找到 {filteredData.length.toLocaleString()} 筆交易資料
-              </Tag>
-            )}
-            {dataLoaded && (!filteredData || filteredData.length === 0) && (
-              <Tag color="orange" className="text-sm">
-                🔍 請設定篩選條件
-              </Tag>
-            )}
-          </div>
-        </div>
-
-        {/* 強化的除錯資訊 */}
-        <div style={{ 
-          marginTop: '16px', 
-          fontSize: '12px', 
-          color: '#6B7280', 
-          backgroundColor: '#F9FAFB', 
-          padding: '8px', 
-          borderRadius: '4px' 
-        }}>
-          <div>除錯資訊:</div>
-          <div>• 選中城市: '{localFilters.city}' (長度: {localFilters.city?.length || 0})</div>
-          <div>• 選中區域: {JSON.stringify(localFilters.district)} (數量: {localFilters.district?.length || 0})</div>
-          <div>• 選中建案: {JSON.stringify(localFilters.project)} (數量: {localFilters.project?.length || 0})</div>
-          <div>• 選中房型: {JSON.stringify(localFilters.roomType)} (數量: {localFilters.roomType?.length || 0})</div>
-          <div>• 可用區域數: {getDistrictOptions().length}</div>
-          <div>• 可用建案數: {getProjectOptions().length}</div>
-          <div>• 總資料筆數: {allData?.length || 0}</div>
-          <div>• 城市選項數: {options.cities?.length || 0}</div>
         </div>
       </div>
-    </Card>
+
+      {/* 已選擇的複選項目顯示 */}
+      {(localFilters.district?.length > 0 || localFilters.project?.length > 0 || localFilters.roomType?.length > 0) && (
+        <div style={{ 
+          marginBottom: '20px', 
+          padding: '16px', 
+          background: 'linear-gradient(135deg, #eff6ff 0%, #dbeafe 100%)',
+          borderRadius: '12px', 
+          border: '2px solid #bfdbfe' 
+        }}>
+          <div style={{ 
+            fontSize: '13px', 
+            fontWeight: '600', 
+            color: '#1e40af', 
+            marginBottom: '10px',
+            display: 'flex',
+            alignItems: 'center',
+            gap: '6px'
+          }}>
+            ✓ 已選擇的條件
+          </div>
+          <div style={{ display: 'flex', flexWrap: 'wrap', gap: '8px' }}>
+            {localFilters.district?.map(district => (
+              <Tag 
+                key={district} 
+                color="blue" 
+                closable 
+                onClose={() => {
+                  const newDistricts = localFilters.district.filter(d => d !== district);
+                  handleFilterChange('district', newDistricts);
+                }}
+                style={{ 
+                  fontSize: '13px', 
+                  padding: '4px 10px',
+                  borderRadius: '6px',
+                  border: 'none'
+                }}
+              >
+                📍 {district}
+              </Tag>
+            ))}
+            {localFilters.project?.map(project => (
+              <Tag 
+                key={project} 
+                color="purple" 
+                closable 
+                onClose={() => {
+                  const newProjects = localFilters.project.filter(p => p !== project);
+                  handleFilterChange('project', newProjects);
+                }}
+                style={{ 
+                  fontSize: '13px', 
+                  padding: '4px 10px',
+                  borderRadius: '6px',
+                  border: 'none'
+                }}
+              >
+                🏗️ {project}
+              </Tag>
+            ))}
+            {localFilters.roomType?.map(roomType => (
+              <Tag 
+                key={roomType} 
+                color="green" 
+                closable 
+                onClose={() => {
+                  const newRoomTypes = localFilters.roomType.filter(rt => rt !== roomType);
+                  handleFilterChange('roomType', newRoomTypes);
+                }}
+                style={{ 
+                  fontSize: '13px', 
+                  padding: '4px 10px',
+                  borderRadius: '6px',
+                  border: 'none'
+                }}
+              >
+                🏠 {roomType}
+              </Tag>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {/* 操作按鈕區域 */}
+      <div style={{ 
+        display: 'flex', 
+        justifyContent: 'space-between', 
+        alignItems: 'center',
+        paddingTop: '20px',
+        borderTop: '2px solid #f1f5f9'
+      }}>
+        {/* 左側：結果統計 */}
+        <div>
+          {filteredData && filteredData.length > 0 ? (
+            <div style={{
+              display: 'inline-flex',
+              alignItems: 'center',
+              gap: '8px',
+              padding: '8px 16px',
+              background: 'linear-gradient(135deg, #10b981 0%, #059669 100%)',
+              borderRadius: '8px',
+              color: 'white',
+              fontSize: '14px',
+              fontWeight: '600',
+              boxShadow: '0 4px 6px -1px rgba(16, 185, 129, 0.3)'
+            }}>
+              <span style={{ fontSize: '18px' }}>📊</span>
+              找到 {filteredData.length.toLocaleString()} 筆交易資料
+            </div>
+          ) : dataLoaded ? (
+            <div style={{
+              display: 'inline-flex',
+              alignItems: 'center',
+              gap: '8px',
+              padding: '8px 16px',
+              background: '#fef3c7',
+              borderRadius: '8px',
+              color: '#92400e',
+              fontSize: '13px',
+              fontWeight: '500'
+            }}>
+              <span>💡</span>
+              請設定篩選條件
+            </div>
+          ) : null}
+        </div>
+
+        {/* 右側：操作按鈕 */}
+        <div style={{ display: 'flex', gap: '12px' }}>
+          <Button
+            icon={<ClearOutlined />}
+            onClick={handleClearFilters}
+            disabled={!dataLoaded}
+            size="large"
+            style={{
+              borderRadius: '8px',
+              fontWeight: '500',
+              height: '44px',
+              padding: '0 24px'
+            }}
+          >
+            清除條件
+          </Button>
+          <Button
+            icon={<SearchOutlined />}
+            type="primary"
+            onClick={handleApplyFilters}
+            disabled={!dataLoaded}
+            size="large"
+            style={{
+              background: 'linear-gradient(135deg, #f59e0b 0%, #d97706 100%)',
+              border: 'none',
+              borderRadius: '8px',
+              fontWeight: '600',
+              height: '44px',
+              padding: '0 32px',
+              boxShadow: '0 4px 6px -1px rgba(245, 158, 11, 0.3)',
+            }}
+          >
+            查詢分析
+          </Button>
+        </div>
+      </div>
+    </div>
   );
 };
 
