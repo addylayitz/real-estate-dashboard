@@ -1,17 +1,29 @@
-// src/components/DataLoader.jsx - 修正版本
+// src/components/DataLoader.jsx - 添加自動載入功能
 import { Modal, Button, Progress, Alert, Space } from 'antd';
 import { DownloadOutlined, DeleteOutlined } from '@ant-design/icons';
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useStore } from '../store/useStore';
 import { IndexedDBManager } from '../services/IndexedDBManager';
 
-const DataLoader = ({ visible, onClose }) => {
+const DataLoader = ({ visible, onClose, autoLoad = false }) => {
   const [loading, setLoading] = useState(false);
   const [progress, setProgress] = useState(0);
   const [status, setStatus] = useState('');
   const [error, setError] = useState('');
   
   const { clearAllData, loadData } = useStore();
+
+  // 自動載入效果
+  useEffect(() => {
+    if (visible && autoLoad && !loading) {
+      console.log('[DataLoader] 觸發自動載入');
+      // 延遲 800ms 後自動開始載入,讓用戶看到載入對話框
+      const timer = setTimeout(() => {
+        handleLoadData();
+      }, 800);
+      return () => clearTimeout(timer);
+    }
+  }, [visible, autoLoad]);
 
   const handleLoadData = async () => {
     setLoading(true);

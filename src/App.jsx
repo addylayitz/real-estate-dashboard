@@ -15,6 +15,7 @@ const { Title } = Typography;
 
 function App() {
   const [dataLoaderVisible, setDataLoaderVisible] = useState(false);
+  const [autoLoadEnabled, setAutoLoadEnabled] = useState(false);
   const [activeTab, setActiveTab] = useState('overview');
   const { dataLoaded, checkDataStatus } = useStore();
 
@@ -23,10 +24,12 @@ function App() {
     checkDataStatus();
   }, [checkDataStatus]);
 
-  // 如果資料未載入，自動顯示載入對話框
+  // 如果資料未載入，自動顯示載入對話框並啟動自動載入
   useEffect(() => {
     if (dataLoaded === false) {
+      console.log('[App] 資料未載入,啟動自動載入流程');
       setDataLoaderVisible(true);
+      setAutoLoadEnabled(true);
     }
   }, [dataLoaded]);
 
@@ -293,7 +296,11 @@ function App() {
       {/* 資料載入對話框 */}
       <DataLoader
         visible={dataLoaderVisible}
-        onClose={() => setDataLoaderVisible(false)}
+        onClose={() => {
+          setDataLoaderVisible(false);
+          setAutoLoadEnabled(false);
+        }}
+        autoLoad={autoLoadEnabled}
       />
     </Layout>
   );
