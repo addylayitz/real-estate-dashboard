@@ -22,7 +22,7 @@ export class DataLoadService {
       const currentVersion = await this.dbManager.getMetadata('dataVersion');
       
       // 2. 從靜態檔案讀取最新版本
-      const response = await fetch('/data/version.json');
+      const response = await fetch(`${import.meta.env.BASE_URL}data/version.json`);
       const latestVersion = await response.json();
 
       console.log('[DataLoadService] 當前版本:', currentVersion);
@@ -122,7 +122,7 @@ export class DataLoadService {
               console.log('[DataLoadService] 所有資料載入完成');
               
               // 儲存版本資訊
-              const response = await fetch('/data/version.json');
+              const response = await fetch(`${import.meta.env.BASE_URL}data/version.json`);
               const versionInfo = await response.json();
               await this.dbManager.saveMetadata('dataVersion', versionInfo);
               
