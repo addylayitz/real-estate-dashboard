@@ -3,8 +3,9 @@ export class IndexedDBManager {
   constructor() {
     this.db = null;
     this.dbName = 'RealEstateDB';
-    this.version = 1;
+    this.version = 2; // 升級版本以支援元資料
     this.storeName = 'properties';
+    this.metadataStoreName = 'metadata'; // 元資料存儲
   }
 
   async init() {
@@ -25,24 +26,29 @@ export class IndexedDBManager {
       request.onupgradeneeded = (event) => {
         console.log('[IndexedDB] 建立/升級資料庫');
         const db = event.target.result;
+        const oldVersion = event.oldVersion;
 
-        // 刪除舊的 store（如果存在）
-        if (db.objectStoreNames.contains(this.storeName)) {
-          db.deleteObjectStore(this.storeName);
+        // 如果是從版本 1 升級,不刪除舊資料
+        if (oldVersion < 1) {
+          // 建立 properties store
+          const store = db.createObjectStore(this.storeName, { 
+            keyPath: 'id', 
+            autoIncrement: true 
+          });
+
+          // 建立索引
+          store.createIndex('city', 'city', { unique: false });
+          store.createIndex('district', 'district', { unique: false });
+          store.createIndex('project', 'project', { unique: false });
+          store.createIndex('roomType', 'roomType', { unique: false });
+          store.createIndex('transactionDate', 'transactionDate', { unique: false });
         }
 
-        // 建立新的 store
-        const store = db.createObjectStore(this.storeName, { 
-          keyPath: 'id', 
-          autoIncrement: true 
-        });
-
-        // 建立索引
-        store.createIndex('city', 'city', { unique: false });
-        store.createIndex('district', 'district', { unique: false });
-        store.createIndex('project', 'project', { unique: false });
-        store.createIndex('roomType', 'roomType', { unique: false });
-        store.createIndex('transactionDate', 'transactionDate', { unique: false });
+        // 建立 metadata store (版本 2 新增)
+        if (!db.objectStoreNames.contains(this.metadataStoreName)) {
+          db.createObjectStore(this.metadataStoreName, { keyPath: 'key' });
+          console.log('[IndexedDB] 元資料存儲建立完成');
+        }
 
         console.log('[IndexedDB] 資料庫結構建立完成');
       };
@@ -253,5 +259,134 @@ export class IndexedDBManager {
         reject(request.error);
       };
     });
+  }
+}
+  // ==================== 元資料管理方法 ====================
+
+  /**
+   * 儲存元資料
+   * @param {string} key - 元資料鍵名
+   * @param {any} value - 元資料值
+   */
+  async saveMetadata(key, value) {
+    if (!this.db) {
+      await this.init();
+    }
+
+    return new Promise((resolve, reject) => {
+      const transaction = this.db.transaction([this.metadataStoreName], 'readwrite');
+      const store = transaction.objectStore(this.metadataStoreName);
+      const request = store.put({ key, value, updatedAt: Date.now() });
+
+      request.onsuccess = () => {
+        console.log(`[IndexedDB] 元資料已儲存: ${key}`);
+        resolve();
+      };
+
+      request.onerror = () => {
+        console.error(`[IndexedDB] 儲存元資料失敗: ${key}`, request.error);
+        reject(request.error);
+      };
+    });
+  }
+
+  /**
+   * 讀取元資料
+   * @param {string} key - 元資料鍵名
+   * @returns {Promise<any>} 元資料值
+   */
+  async getMetadata(key) {
+    if (!this.db) {
+      await this.init();
+    }
+
+    return new Promise((resolve, reject) => {
+      const transaction = this.db.transaction([this.metadataStoreName], 'readonly');
+      const store = transaction.objectStore(this.metadataStoreName);
+      const request = store.get(key);
+
+      request.onsuccess = () => {
+        const result = request.result;
+        if (result) {
+          console.log(`[IndexedDB] 讀取元資料: ${key}`, result.value);
+          resolve(result.value);
+        } else {
+          console.log(`[IndexedDB] 元資料不存在: ${key}`);
+          resolve(null);
+        }
+      };
+
+      request.onerror = () => {
+        console.error(`[IndexedDB] 讀取元資料失敗: ${key}`, request.error);
+        reject(request.error);
+      };
+    });
+  }
+
+  /**
+   * 刪除元資料
+   * @param {string} key - 元資料鍵名
+   */
+  async deleteMetadata(key) {
+    if (!this.db) {
+      await this.init();
+    }
+
+    return new Promise((resolve, reject) => {
+      const transaction = this.db.transaction([this.metadataStoreName], 'readwrite');
+      const store = transaction.objectStore(this.metadataStoreName);
+      const request = store.delete(key);
+
+      request.onsuccess = () => {
+        console.log(`[IndexedDB] 元資料已刪除: ${key}`);
+        resolve();
+      };
+
+      request.onerror = () => {
+        console.error(`[IndexedDB] 刪除元資料失敗: ${key}`, request.error);
+        reject(request.error);
+      };
+    });
+  }
+
+  /**
+   * 取得所有元資料
+   * @returns {Promise<Object>} 所有元資料
+   */
+  async getAllMetadata() {
+    if (!this.db) {
+      await this.init();
+    }
+
+    return new Promise((resolve, reject) => {
+      const transaction = this.db.transaction([this.metadataStoreName], 'readonly');
+      const store = transaction.objectStore(this.metadataStoreName);
+      const request = store.getAll();
+
+      request.onsuccess = () => {
+        const results = request.result || [];
+        const metadata = {};
+        results.forEach(item => {
+          metadata[item.key] = item.value;
+        });
+        resolve(metadata);
+      };
+
+      request.onerror = () => {
+        console.error('[IndexedDB] 讀取所有元資料失敗:', request.error);
+        reject(request.error);
+      };
+    });
+  }
+
+  /**
+   * 關閉資料庫連線
+   */
+  async close() {
+    if (this.db) {
+      this.db.close();
+      this.db = null;
+      console.log('[IndexedDB] 資料庫連線已關閉');
+    }
   }
 }

@@ -1,120 +1,37 @@
-// src/App.jsx - 重構版本:移除對話框,使用全螢幕載入
-import { Layout, Typography, Breadcrumb } from 'antd';
-import { HomeOutlined, DashboardOutlined } from '@ant-design/icons';
+// src/App.jsx - 現代商務風版本
+import { Layout, Button, Typography, Breadcrumb } from 'antd';
+import { DatabaseOutlined, HomeOutlined, DashboardOutlined } from '@ant-design/icons';
 import { useState, useEffect } from 'react';
 import { useStore } from './store/useStore';
-import { dataLoadService } from './services/DataLoadService';
 
 // 元件 imports
 import FilterPanel from './components/filters/FilterPanel';
 import TabNavigation from './components/navigation/TabNavigation';
 import TabContent from './components/navigation/TabContent';
-import LoadingScreen from './components/LoadingScreen';
-import UpdateNotification from './components/UpdateNotification';
+import DataLoader from './components/DataLoader';
 
 const { Header, Content, Footer } = Layout;
 const { Title } = Typography;
 
 function App() {
+  const [dataLoaderVisible, setDataLoaderVisible] = useState(false);
+  const [autoLoadEnabled, setAutoLoadEnabled] = useState(false);
   const [activeTab, setActiveTab] = useState('overview');
-  const [loading, setLoading] = useState(false);
-  const [loadProgress, setLoadProgress] = useState(0);
-  const [loadStatus, setLoadStatus] = useState('');
-  const [loadCityName, setLoadCityName] = useState('');
-  const [updateNotification, setUpdateNotification] = useState({
-    visible: false,
-    message: '',
-    type: 'info'
-  });
+  const { dataLoaded, checkDataStatus } = useStore();
 
-  const { dataLoaded, checkDataStatus, loadData } = useStore();
-
-  // 初始化:檢查資料狀態
+  // 檢查資料載入狀態
   useEffect(() => {
-    initializeApp();
-  }, []);
+    checkDataStatus();
+  }, [checkDataStatus]);
 
-  const initializeApp = async () => {
-    console.log('[App] 應用初始化...');
-    
-    try {
-      // 1. 檢查資料版本
-      const versionCheck = await dataLoadService.checkDataVersion();
-      console.log('[App] 版本檢查結果:', versionCheck);
-
-      if (versionCheck.needsLoad) {
-        // 首次使用,需要載入資料
-        console.log('[App] 首次使用,開始載入資料');
-        await startDataLoad();
-      } else if (versionCheck.needsUpdate) {
-        // 有新資料,背景更新
-        console.log('[App] 檢測到新資料,開始背景更新');
-        showUpdateNotification(
-          `檢測到 ${versionCheck.newRecords.toLocaleString()} 筆新資料,正在更新...`,
-          'info'
-        );
-        await startDataLoad();
-      } else {
-        // 資料是最新的,直接載入
-        console.log('[App] 資料已是最新,直接使用');
-        await checkDataStatus();
-      }
-    } catch (error) {
-      console.error('[App] 初始化失敗:', error);
-      // 初始化失敗,嘗試載入資料
-      await startDataLoad();
+  // 如果資料未載入，自動顯示載入對話框並啟動自動載入
+  useEffect(() => {
+    if (dataLoaded === false) {
+      console.log('[App] 資料未載入,啟動自動載入流程');
+      setDataLoaderVisible(true);
+      setAutoLoadEnabled(true);
     }
-  };
-
-  const startDataLoad = async () => {
-    setLoading(true);
-    setLoadProgress(0);
-    setLoadStatus('準備載入資料...');
-
-    await dataLoadService.loadAllData({
-      onProgress: (progressData) => {
-        setLoadProgress(progressData.progress);
-        setLoadStatus(progressData.status);
-        setLoadCityName(progressData.cityName);
-      },
-      onComplete: async () => {
-        console.log('[App] 資料載入完成');
-        setLoadProgress(100);
-        setLoadStatus('載入完成！');
-        
-        // 重新載入 store 資料
-        await loadData();
-        
-        // 延遲關閉載入畫面
-        setTimeout(() => {
-          setLoading(false);
-          showUpdateNotification('資料載入完成！', 'success');
-        }, 1000);
-      },
-      onError: (error) => {
-        console.error('[App] 載入失敗:', error);
-        setLoadStatus(`載入失敗: ${error}`);
-        setTimeout(() => {
-          setLoading(false);
-        }, 3000);
-      }
-    });
-  };
-
-  const showUpdateNotification = (message, type = 'info') => {
-    setUpdateNotification({
-      visible: true,
-      message,
-      type
-    });
-  };
-
-  const hideUpdateNotification = () => {
-    setUpdateNotification({
-      ...updateNotification,
-      visible: false
-    });
-  };
+  }, [dataLoaded]);
 
   // 處理分頁切換
   const handleTabChange = (key) => {
@@ -134,24 +51,6 @@ function App() {
 
   return (
     <Layout className="min-h-screen">
-      {/* 全螢幕載入畫面 */}
-      {loading && (
-        <LoadingScreen
-          progress={loadProgress}
-          status={loadStatus}
-          cityName={loadCityName}
-          onComplete={() => setLoading(false)}
-        />
-      )}
-
-      {/* 更新通知 */}
-      <UpdateNotification
-        visible={updateNotification.visible}
-        message={updateNotification.message}
-        type={updateNotification.type}
-        onClose={hideUpdateNotification}
-      />
-
       {/* 🎨 現代商務風 Header - 深藍漸層 */}
       <Header 
         style={{ 
@@ -230,22 +129,42 @@ function App() {
             )}
           </div>
 
-          {/* 右側：資料統計資訊 (移除資料管理按鈕) */}
-          {dataLoaded && (
-            <div style={{ 
-              flexShrink: 0,
-              minWidth: '140px',
-              textAlign: 'right'
-            }}>
-              <div style={{ 
-                color: 'rgba(255, 255, 255, 0.9)',
-                fontSize: '14px',
-                fontWeight: '500'
-              }}>
-                📊 找到 200,000 筆交易資料
-              </div>
-            </div>
-          )}
+          {/* 右側：資料管理按鈕 */}
+          <div style={{ 
+            flexShrink: 0,
+            minWidth: '140px'
+          }}>
+            <Button
+              type="default"
+              size="large"
+              icon={<DatabaseOutlined />}
+              onClick={() => setDataLoaderVisible(true)}
+              style={{ 
+                backgroundColor: 'rgba(255, 255, 255, 0.15)',
+                backdropFilter: 'blur(10px)',
+                borderColor: 'rgba(255, 255, 255, 0.3)',
+                color: 'white',
+                fontWeight: '500',
+                borderRadius: '8px',
+                transition: 'all 0.2s ease',
+                boxShadow: '0 2px 4px rgba(0, 0, 0, 0.1)'
+              }}
+              onMouseEnter={(e) => {
+                e.currentTarget.style.backgroundColor = 'rgba(255, 255, 255, 0.25)';
+                e.currentTarget.style.borderColor = 'rgba(255, 255, 255, 0.5)';
+                e.currentTarget.style.transform = 'translateY(-1px)';
+                e.currentTarget.style.boxShadow = '0 4px 6px rgba(0, 0, 0, 0.15)';
+              }}
+              onMouseLeave={(e) => {
+                e.currentTarget.style.backgroundColor = 'rgba(255, 255, 255, 0.15)';
+                e.currentTarget.style.borderColor = 'rgba(255, 255, 255, 0.3)';
+                e.currentTarget.style.transform = 'translateY(0)';
+                e.currentTarget.style.boxShadow = '0 2px 4px rgba(0, 0, 0, 0.1)';
+              }}
+            >
+              資料管理
+            </Button>
+          </div>
         </div>
       </Header>
 
@@ -273,16 +192,82 @@ function App() {
             <TabContent activeTab={activeTab} />
           </div>
         ) : (
-          // 載入中提示(通常不會顯示,因為有全螢幕載入畫面)
+          // 首次使用提示頁面
           <div 
-            className="text-center py-20"
+            className="text-center py-20 animate-scale-in"
             style={{
               maxWidth: '600px',
               margin: '0 auto',
               padding: '40px 20px'
             }}
           >
-            <div className="text-gray-500">正在初始化...</div>
+            <div 
+              style={{
+                width: '120px',
+                height: '120px',
+                margin: '0 auto 32px',
+                background: 'linear-gradient(135deg, #3b82f6 0%, #1e3a8a 100%)',
+                borderRadius: '24px',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                fontSize: '56px',
+                boxShadow: '0 20px 25px -5px rgba(30, 58, 138, 0.3)',
+                animation: 'float 3s ease-in-out infinite'
+              }}
+            >
+              📊
+            </div>
+
+            <Title 
+              level={2} 
+              style={{ 
+                color: '#1e293b',
+                fontWeight: '700',
+                marginBottom: '16px'
+              }}
+            >
+              歡迎使用預售屋數據儀表板
+            </Title>
+
+            <p 
+              style={{
+                color: '#64748b',
+                fontSize: '16px',
+                lineHeight: '1.6',
+                marginBottom: '32px'
+              }}
+            >
+              這個過程將載入約 <strong style={{ color: '#3b82f6' }}>16 萬筆</strong> 預售屋資料到您的瀏覽器本地儲存。
+              <br />
+              載入完成後即可離線使用所有分析功能。
+            </p>
+
+            <Button
+              type="primary"
+              size="large"
+              icon={<DatabaseOutlined />}
+              onClick={() => setDataLoaderVisible(true)}
+              style={{
+                height: '48px',
+                padding: '0 32px',
+                fontSize: '16px',
+                fontWeight: '600',
+                borderRadius: '10px',
+                background: 'linear-gradient(135deg, #3b82f6 0%, #1e3a8a 100%)',
+                border: 'none',
+                boxShadow: '0 10px 15px -3px rgba(59, 130, 246, 0.3)',
+              }}
+            >
+              開始載入資料
+            </Button>
+
+            <style jsx>{`
+              @keyframes float {
+                0%, 100% { transform: translateY(0px); }
+                50% { transform: translateY(-10px); }
+              }
+            `}</style>
           </div>
         )}
       </Content>
@@ -307,6 +292,16 @@ function App() {
           </span>
         </div>
       </Footer>
+
+      {/* 資料載入對話框 */}
+      <DataLoader
+        visible={dataLoaderVisible}
+        onClose={() => {
+          setDataLoaderVisible(false);
+          setAutoLoadEnabled(false);
+        }}
+        autoLoad={autoLoadEnabled}
+      />
     </Layout>
   );
 }
