@@ -43,15 +43,40 @@ class DataService {
       };
     }
 
-    // 建立城市選項 - 使用 Map 去重並保持順序
+    console.log('[DataService] 開始處理篩選選項,資料筆數:', data.length);
+
+    // 使用 Map/Set 逐步處理,避免大量 map() 操作導致堆疊溢位
     const cityMap = new Map();
+    const districtSet = new Set();
+    const projectSet = new Set();
+    const roomTypeSet = new Set();
     
-    data.forEach(item => {
+    // 一次遍歷收集所有選項
+    for (let i = 0; i < data.length; i++) {
+      const item = data[i];
+      
+      // 城市
       if (item.city && item.cityName) {
         cityMap.set(item.city, item.cityName);
       }
-    });
+      
+      // 區域
+      if (item.district) {
+        districtSet.add(item.district);
+      }
+      
+      // 建案 - 限制數量避免過多
+      if (item.project && projectSet.size < 500) {
+        projectSet.add(item.project);
+      }
+      
+      // 房型
+      if (item.roomType) {
+        roomTypeSet.add(item.roomType);
+      }
+    }
 
+    // 轉換為陣列 - 使用 Array.from 而不是展開運算符
     const cities = Array.from(cityMap.entries()).map(([value, label]) => ({
       value,
       label
@@ -60,10 +85,10 @@ class DataService {
     // 按城市名稱排序
     cities.sort((a, b) => a.label.localeCompare(b.label, 'zh-TW'));
 
-    // 其他選項
-    const districts = [...new Set(data.map(item => item.district).filter(Boolean))];
-    const projects = [...new Set(data.map(item => item.project).filter(Boolean))];
-    const roomTypes = [...new Set(data.map(item => item.roomType).filter(Boolean))];
+    // 轉換其他選項
+    const districts = Array.from(districtSet);
+    const projects = Array.from(projectSet);
+    const roomTypes = Array.from(roomTypeSet);
 
     console.log('[DataService] 篩選選項統計:', {
       cities: cities.length,
@@ -74,9 +99,9 @@ class DataService {
 
     return {
       cities: cities,
-      districts: districts.slice(0, 100),
-      projects: projects.slice(0, 200),
-      roomTypes: roomTypes.slice(0, 20)
+      districts: districts.slice(0, 200),  // 增加限制
+      projects: projects.slice(0, 500),     // 增加限制
+      roomTypes: roomTypes.slice(0, 50)     // 增加限制
     };
   }
 
