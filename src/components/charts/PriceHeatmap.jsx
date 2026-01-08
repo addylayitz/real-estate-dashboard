@@ -2,6 +2,7 @@
 import { Card, Spin, Tooltip as AntTooltip } from 'antd';
 import { useStore } from '../../store/useStore';
 import { useMemo } from 'react';
+import { getUniqueValues } from '../../utils/dataHelpers';
 
 const PriceHeatmap = () => {
   const { filteredData, loading, filters } = useStore();
@@ -33,10 +34,10 @@ const PriceHeatmap = () => {
     const validData = filteredData.filter(item => item.totalPrice && item.totalPrice > 0);
     console.log('[PriceHeatmap] 有效價格資料筆數:', validData.length);
 
-    // 取得位置列表（縣市或區域）
+    // 取得位置列表（縣市或區域）- 使用安全方法避免堆疊溢位
     const locations = useDistrict 
-      ? [...new Set(validData.map(item => item.district).filter(Boolean))]
-      : [...new Set(validData.map(item => item.cityName || item.city).filter(Boolean))];
+      ? getUniqueValues(validData, item => item.district)
+      : getUniqueValues(validData, item => item.cityName || item.city);
     
     console.log('[PriceHeatmap] 位置列表:', locations);
 

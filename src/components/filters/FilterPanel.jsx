@@ -1,9 +1,10 @@
-// src/components/filters/FilterPanel.jsx - 現代商務風版本
+// src/components/filters/FilterPanel.jsx - 篩選面板元件
 import { Select, DatePicker, InputNumber, Button, Tag, message } from 'antd';
 import { SearchOutlined, ClearOutlined, FilterOutlined } from '@ant-design/icons';
 import { useStore } from '../../store/useStore';
 import { useState, useEffect } from 'react';
 import dayjs from 'dayjs';
+import { getUniqueValues } from '../../utils/dataHelpers';;
 
 const { RangePicker } = DatePicker;
 const { Option } = Select;
@@ -99,8 +100,8 @@ const FilterPanel = () => {
   const getDistrictOptions = () => {
     if (!localFilters.city || !allData) return [];
     const cityData = allData.filter(item => item.city === localFilters.city);
-    const districts = [...new Set(cityData.map(item => item.district).filter(item => item && String(item).trim()))];
-    return districts.sort(safeStringSort).slice(0, 50);
+    const districts = getUniqueValues(cityData, item => item.district, { limit: 50 });
+    return districts.sort(safeStringSort);
   };
 
   // 取得建案選項
@@ -113,8 +114,8 @@ const FilterPanel = () => {
     if (localFilters.district && localFilters.district.length > 0) {
       projectData = projectData.filter(item => localFilters.district.includes(item.district));
     }
-    const projects = [...new Set(projectData.map(item => item.project).filter(item => item && String(item).trim()))];
-    return projects.sort(safeStringSort).slice(0, 100);
+    const projects = getUniqueValues(projectData, item => item.project, { limit: 100 });
+    return projects.sort(safeStringSort);
   };
 
   // 取得房型選項
@@ -124,8 +125,8 @@ const FilterPanel = () => {
     if (localFilters.city) {
       roomTypeData = roomTypeData.filter(item => item.city === localFilters.city);
     }
-    const roomTypes = [...new Set(roomTypeData.map(item => item.roomType).filter(item => item && String(item).trim()))];
-    return roomTypes.sort(safeStringSort).slice(0, 20);
+    const roomTypes = getUniqueValues(roomTypeData, item => item.roomType, { limit: 20 });
+    return roomTypes.sort(safeStringSort);
   };
 
   return (

@@ -178,8 +178,8 @@ const ProjectAnalysis = () => {
 
     console.log('[ProjectAnalysis] 有效日期筆數:', validDateCount);
     
-    // 取得所有月份並排序
-    const allMonths = [...new Set(Object.values(monthlyStats).map(item => item.month))]
+    // 取得所有月份並排序 - 使用 Array.from 避免展開運算符
+    const allMonths = Array.from(new Set(Object.values(monthlyStats).map(item => item.month)))
       .sort((a, b) => {
         const [yearA, monthA] = a.split('-').map(Number);
         const [yearB, monthB] = b.split('-').map(Number);

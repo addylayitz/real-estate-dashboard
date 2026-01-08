@@ -1,6 +1,7 @@
 // src/store/useStore.js - 支援建案多選版本
 import { create } from 'zustand';
 import { dataService } from '../services/DataService';
+import { getUniqueValues, getMultipleUniqueValues } from '../utils/dataHelpers';
 
 export const useStore = create((set, get) => ({
   // 資料狀態
@@ -204,31 +205,45 @@ export const useStore = create((set, get) => ({
     return dataService.getStatistics(filteredData);
   },
 
-  // 取得篩選選項 - 增強版本
+  // 取得篩選選項 - 增強版本 (優化大量資料處理)
   getFilterOptionsEnhanced: (data) => {
     if (!data || data.length === 0) return { cities: [], districts: [], projects: [], roomTypes: [] };
 
-    // 城市選項
-    const cities = [...new Set(data.map(item => item.cityName || item.city))].filter(Boolean);
-    const cityOptions = cities.map(city => ({
-      value: data.find(item => (item.cityName || item.city) === city)?.city || city,
-      label: city
-    })).sort((a, b) => a.label.localeCompare(b.label, 'zh-TW'));
+    // 使用安全方法提取唯一值,避免堆疊溢位
+    const uniqueValues = getMultipleUniqueValues(data, {
+      cityNames: item => item.cityName || item.city,
+      cities: item => item.city,
+      districts: item => item.district,
+      projects: item => item.project,
+      roomTypes: item => item.roomType
+    }, {
+      limits: {
+        projects: 500,
+        districts: 200,
+        roomTypes: 50
+      }
+    });
 
-    // 區域選項
-    const districts = [...new Set(data.map(item => item.district))].filter(Boolean);
-    
-    // 建案選項
-    const projects = [...new Set(data.map(item => item.project))].filter(Boolean);
-    
-    // 房型選項
-    const roomTypes = [...new Set(data.map(item => item.roomType))].filter(Boolean);
+    // 城市選項 - 建立 cityName 到 city 的映射
+    const cityMap = new Map();
+    for (let i = 0; i < data.length && cityMap.size < 50; i++) {
+      const item = data[i];
+      const cityName = item.cityName || item.city;
+      if (cityName && item.city) {
+        cityMap.set(cityName, item.city);
+      }
+    }
+
+    const cityOptions = Array.from(cityMap.entries()).map(([label, value]) => ({
+      value,
+      label
+    })).sort((a, b) => a.label.localeCompare(b, 'zh-TW'));
 
     return {
       cities: cityOptions,
-      districts: districts.sort((a, b) => a.localeCompare(b, 'zh-TW')),
-      projects: projects.sort((a, b) => a.localeCompare(b, 'zh-TW')),
-      roomTypes: roomTypes.sort((a, b) => a.localeCompare(b, 'zh-TW'))
+      districts: uniqueValues.districts.sort((a, b) => a.localeCompare(b, 'zh-TW')),
+      projects: uniqueValues.projects.sort((a, b) => a.localeCompare(b, 'zh-TW')),
+      roomTypes: uniqueValues.roomTypes.sort((a, b) => a.localeCompare(b, 'zh-TW'))
     };
   },
 

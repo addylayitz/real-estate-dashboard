@@ -154,8 +154,8 @@ const PriceStatistics = () => {
     console.log('[PriceStatistics] 有效日期筆數:', validDateCount);
     console.log('[PriceStatistics] 月份統計:', Object.keys(monthlyStats));
 
-    // 取得所有月份並排序
-    const allMonths = [...new Set(Object.values(monthlyStats).map(item => item.month))]
+    // 取得所有月份並排序 - 使用 Array.from 避免展開運算符
+    const allMonths = Array.from(new Set(Object.values(monthlyStats).map(item => item.month)))
       .sort((a, b) => {
         const [yearA, monthA] = a.split('-').map(Number);
         const [yearB, monthB] = b.split('-').map(Number);
