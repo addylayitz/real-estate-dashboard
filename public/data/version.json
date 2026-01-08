@@ -1,7 +1,7 @@
 {
-  "version": "1.1.0",
-  "recordCount": 169509,
-  "lastUpdate": "2025-01-08",
+  "version": "1.2.0",
+  "recordCount": 179180,
+  "lastUpdate": "2026-01-08",
   "cities": 21,
-  "description": "預售屋交易資料 - 更新至最新數據"
+  "description": "預售屋交易資料 - 更新台北市資料"
 }
