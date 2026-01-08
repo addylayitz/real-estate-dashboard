@@ -100,7 +100,8 @@ const FilterPanel = () => {
   const getDistrictOptions = () => {
     if (!localFilters.city || !allData) return [];
     const cityData = allData.filter(item => item.city === localFilters.city);
-    const districts = getUniqueValues(cityData, item => item.district, { limit: 50 });
+    // 支援中英文欄位名稱
+    const districts = getUniqueValues(cityData, item => item.district || item['區域'], { limit: 50 });
     return districts.sort(safeStringSort);
   };
 
@@ -112,7 +113,8 @@ const FilterPanel = () => {
       projectData = projectData.filter(item => item.city === localFilters.city);
     }
     if (localFilters.district && localFilters.district.length > 0) {
-      projectData = projectData.filter(item => localFilters.district.includes(item.district));
+      // 支援中英文欄位名稱
+      projectData = projectData.filter(item => localFilters.district.includes(item.district || item['區域']));
     }
     const projects = getUniqueValues(projectData, item => item.project, { limit: 100 });
     return projects.sort(safeStringSort);
