@@ -1,7 +1,5 @@
 {
-  "version": "3.0.0",
+  "version": "3.1.0",
   "recordCount": 179180,
-  "lastUpdate": "2026-01-08",
-  "cities": 21,
-  "description": "所有縣市資料統一為中文欄位格式"
+  "lastUpdated": "2026-01-08T15:30:00+08:00"
 }
