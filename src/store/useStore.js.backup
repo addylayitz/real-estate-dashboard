@@ -1,14 +1,7 @@
-// src/store/useStore.js - 修復堆疊溢位問題
+// src/store/useStore.js - 支援建案多選版本
 import { create } from 'zustand';
 import { dataService } from '../services/DataService';
 import { getUniqueValues, getMultipleUniqueValues } from '../utils/dataHelpers';
-
-// 安全的陣列處理函數，避免堆疊溢位
-const safeArrayCopy = (arr) => {
-  if (!arr || arr.length === 0) return [];
-  // 使用 slice 而不是展開運算符
-  return arr.slice();
-};
 
 export const useStore = create((set, get) => ({
   // 資料狀態
@@ -17,11 +10,11 @@ export const useStore = create((set, get) => ({
   loading: false,
   dataLoaded: false,
   
-  // 篩選條件
+  // 篩選條件 - 修改 project 為陣列格式
   filters: {
     city: '',
     district: '',
-    project: '',
+    project: '', // 保持字串格式以相容現有系統
     roomType: '',
     startDate: '',
     endDate: '',
@@ -37,7 +30,7 @@ export const useStore = create((set, get) => ({
     roomTypes: []
   },
 
-  // 載入資料 - 修復：初始時 filteredData 為空
+  // 載入資料
   loadData: async () => {
     set({ loading: true });
     try {
@@ -48,11 +41,9 @@ export const useStore = create((set, get) => ({
       const options = dataService.getFilterOptions(data);
       console.log('[useStore] 篩選選項:', options);
       
-      // 🔧 修復：初始時 filteredData 為空陣列，避免一次處理全部數據
-      // 用戶需要先選擇篩選條件才能看到數據
       set({
         allData: data,
-        filteredData: [], // 重要：初始為空，避免堆疊溢位
+        filteredData: data, // 初始時顯示所有資料
         options,
         dataLoaded: true,
         loading: false
@@ -71,6 +62,7 @@ export const useStore = create((set, get) => ({
       set({ dataLoaded: isLoaded });
       
       if (isLoaded) {
+        // 如果資料已存在，直接載入
         await get().loadData();
       }
     } catch (error) {
@@ -79,7 +71,7 @@ export const useStore = create((set, get) => ({
     }
   },
 
-  // 增強的篩選資料方法 - 優化大量資料處理
+  // 增強的篩選資料方法 - 支援建案多選
   filterDataWithMultiSelect: (data, filters) => {
     console.log('[useStore] 開始篩選資料，支援建案多選:', filters);
     
@@ -88,25 +80,7 @@ export const useStore = create((set, get) => ({
       return [];
     }
 
-    // 🔧 修復：檢查是否有任何篩選條件
-    const hasAnyFilter = 
-      (filters.city && filters.city.trim() !== '') ||
-      (filters.district && filters.district.trim() !== '') ||
-      (filters.project && filters.project.trim() !== '') ||
-      (filters.roomType && filters.roomType.trim() !== '') ||
-      (filters.startDate && filters.startDate.trim() !== '') ||
-      (filters.endDate && filters.endDate.trim() !== '') ||
-      (filters.minPrice && filters.minPrice !== '') ||
-      (filters.maxPrice && filters.maxPrice !== '');
-
-    // 如果沒有任何篩選條件，返回空陣列避免處理全部數據
-    if (!hasAnyFilter) {
-      console.log('[useStore] 沒有篩選條件，返回空陣列');
-      return [];
-    }
-
-    // 使用 slice 而不是展開運算符來複製陣列
-    let filtered = data.slice();
+    let filtered = [...data];
 
     // 城市篩選
     if (filters.city && filters.city.trim() !== '') {
@@ -123,7 +97,7 @@ export const useStore = create((set, get) => ({
       }
     }
 
-    // 建案篩選 - 支援多選
+    // 建案篩選 - 新增多選支援
     if (filters.project && filters.project.trim() !== '') {
       const projects = filters.project.split(',').map(p => p.trim()).filter(p => p);
       if (projects.length > 0) {
@@ -164,7 +138,7 @@ export const useStore = create((set, get) => ({
 
     // 價格篩選
     if (filters.minPrice && filters.minPrice !== '') {
-      const minPrice = parseFloat(filters.minPrice) * 10000;
+      const minPrice = parseFloat(filters.minPrice) * 10000; // 轉換為元
       filtered = filtered.filter(item => {
         const price = parseFloat(item.totalPrice || 0);
         return price >= minPrice;
@@ -173,19 +147,12 @@ export const useStore = create((set, get) => ({
     }
 
     if (filters.maxPrice && filters.maxPrice !== '') {
-      const maxPrice = parseFloat(filters.maxPrice) * 10000;
+      const maxPrice = parseFloat(filters.maxPrice) * 10000; // 轉換為元
       filtered = filtered.filter(item => {
         const price = parseFloat(item.totalPrice || 0);
         return price <= maxPrice;
       });
       console.log(`[useStore] 最高價格篩選後: ${filtered.length} 筆`);
-    }
-
-    // 🔧 修復：限制結果數量，避免處理過多數據
-    const MAX_RESULTS = 50000;
-    if (filtered.length > MAX_RESULTS) {
-      console.warn(`[useStore] 篩選結果過多 (${filtered.length})，限制為 ${MAX_RESULTS} 筆`);
-      filtered = filtered.slice(0, MAX_RESULTS);
     }
 
     console.log(`[useStore] 篩選完成: ${data.length} -> ${filtered.length} 筆`);
@@ -226,10 +193,9 @@ export const useStore = create((set, get) => ({
       maxPrice: ''
     };
     
-    // 清除篩選條件時，filteredData 也設為空
     set({
       filters: defaultFilters,
-      filteredData: []
+      filteredData: get().allData
     });
   },
 
@@ -239,10 +205,11 @@ export const useStore = create((set, get) => ({
     return dataService.getStatistics(filteredData);
   },
 
-  // 取得篩選選項 - 增強版本
+  // 取得篩選選項 - 增強版本 (優化大量資料處理)
   getFilterOptionsEnhanced: (data) => {
     if (!data || data.length === 0) return { cities: [], districts: [], projects: [], roomTypes: [] };
 
+    // 使用安全方法提取唯一值,避免堆疊溢位
     const uniqueValues = getMultipleUniqueValues(data, {
       cityNames: item => item.cityName || item.city,
       cities: item => item.city,
@@ -257,6 +224,7 @@ export const useStore = create((set, get) => ({
       }
     });
 
+    // 城市選項 - 建立 cityName 到 city 的映射
     const cityMap = new Map();
     for (let i = 0; i < data.length && cityMap.size < 50; i++) {
       const item = data[i];

@@ -1,4 +1,4 @@
-// src/components/charts/AreaDistribution.jsx - 房屋面積分布圖表
+// src/components/charts/AreaDistribution.jsx - 修復堆疊溢位問題
 import { Card, Spin, Table } from 'antd';
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts';
 import { useStore } from '../../store/useStore';
@@ -60,7 +60,7 @@ const AreaDistribution = () => {
     return nonZeroDistribution;
   }, [filteredData]);
 
-  // 計算統計摘要
+  // 🔧 修復：計算統計摘要 - 避免對大量數據進行 sort 操作
   const areaStatistics = useMemo(() => {
     if (!filteredData || filteredData.length === 0) {
       return {
@@ -86,19 +86,44 @@ const AreaDistribution = () => {
       };
     }
 
-    const areas = validAreaData.map(item => parseFloat(item.area)).sort((a, b) => a - b);
-    const totalArea = areas.reduce((sum, area) => sum + area, 0);
-    const avgArea = totalArea / areas.length;
-    const medianArea = areas.length % 2 === 0 
-      ? (areas[areas.length / 2 - 1] + areas[areas.length / 2]) / 2
-      : areas[Math.floor(areas.length / 2)];
+    // 🔧 修復：使用迴圈計算統計值，避免創建大陣列和排序
+    let totalArea = 0;
+    let minArea = Infinity;
+    let maxArea = -Infinity;
+    
+    // 單次遍歷計算總和、最小值、最大值
+    for (let i = 0; i < validAreaData.length; i++) {
+      const area = parseFloat(validAreaData[i].area);
+      if (!isNaN(area) && area > 0) {
+        totalArea += area;
+        if (area < minArea) minArea = area;
+        if (area > maxArea) maxArea = area;
+      }
+    }
+
+    const avgArea = totalArea / validAreaData.length;
+
+    // 🔧 修復：對於中位數，如果數據量太大，使用近似值
+    let medianArea;
+    if (validAreaData.length > 10000) {
+      // 數據量太大時，使用平均值作為近似中位數
+      medianArea = avgArea;
+      console.log('[AreaDistribution] 數據量大，使用平均值作為近似中位數');
+    } else {
+      // 數據量較小時，正常計算中位數
+      const areas = validAreaData.map(item => parseFloat(item.area)).filter(a => !isNaN(a) && a > 0);
+      areas.sort((a, b) => a - b);
+      medianArea = areas.length % 2 === 0 
+        ? (areas[areas.length / 2 - 1] + areas[areas.length / 2]) / 2
+        : areas[Math.floor(areas.length / 2)];
+    }
 
     return {
       totalCount: filteredData.length,
       validCount: validAreaData.length,
       avgArea: Math.round(avgArea * 10) / 10,
-      minArea: Math.round(areas[0] * 10) / 10,
-      maxArea: Math.round(areas[areas.length - 1] * 10) / 10,
+      minArea: minArea === Infinity ? 0 : Math.round(minArea * 10) / 10,
+      maxArea: maxArea === -Infinity ? 0 : Math.round(maxArea * 10) / 10,
       medianArea: Math.round(medianArea * 10) / 10
     };
   }, [filteredData]);
@@ -155,7 +180,7 @@ const AreaDistribution = () => {
           {/* 統計摘要 */}
           <div className="grid grid-cols-2 md:grid-cols-6 gap-4 p-4 bg-gray-50 rounded-lg">
             <div className="text-center">
-              <div className="text-2xl font-bold text-blue-600">{areaStatistics.validCount}</div>
+              <div className="text-2xl font-bold text-blue-600">{areaStatistics.validCount.toLocaleString()}</div>
               <div className="text-sm text-gray-600">有效筆數</div>
             </div>
             <div className="text-center">
@@ -175,7 +200,7 @@ const AreaDistribution = () => {
               <div className="text-sm text-gray-600">最大面積</div>
             </div>
             <div className="text-center">
-              <div className="text-2xl font-bold text-gray-600">{areaStatistics.totalCount}</div>
+              <div className="text-2xl font-bold text-gray-600">{areaStatistics.totalCount.toLocaleString()}</div>
               <div className="text-sm text-gray-600">總筆數</div>
             </div>
           </div>
@@ -238,7 +263,9 @@ const AreaDistribution = () => {
         </div>
       ) : (
         <div className="text-center text-gray-500 py-8">
-          請選擇篩選條件以查看面積分布數據
+          <div className="text-lg mb-2">📊</div>
+          <div className="text-base font-medium">請選擇篩選條件以查看面積分布數據</div>
+          <div className="text-sm text-gray-400 mt-1">選擇城市或區域來開始分析</div>
         </div>
       )}
     </Card>
