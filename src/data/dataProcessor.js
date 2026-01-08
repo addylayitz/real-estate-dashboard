@@ -118,10 +118,10 @@ function processRecord(record, index) {
   return {
     // 基本資訊
     id: `data-${index + 1}`,
-    city: cityMap[record['縣市']] || 'other',
-    cityName: record['縣市'] || '',
-    district: record['區域'] || '',
-    project: record['建案名稱'] || '',
+    city: cityMap[record['縣市'] || record['city']] || record['city'] || 'other',
+    cityName: record['縣市'] || record['city'] || '',
+    district: record['區域'] || record['district'] || '',
+    project: record['建案名稱'] || record['project'] || '',
     
     // 房屋資訊
     roomType: normalizeRoomType(record['房型']),
