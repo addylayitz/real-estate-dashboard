@@ -38,14 +38,18 @@ self.onmessage = async function(e) {
     } else {
       postMessage({
         type: 'error',
-        error: `未知的訊息類型: ${type}`
+        data: {
+          error: `未知的訊息類型: ${type}`
+        }
       });
     }
   } catch (error) {
     console.error('[Worker] 處理訊息失敗:', error);
     postMessage({
       type: 'error',
-      error: error.message
+      data: {
+        error: error.message
+      }
     });
   }
 };
@@ -99,10 +103,8 @@ async function loadAllData() {
         
       } catch (cityError) {
         console.error(`[Worker] ${cityName} 載入失敗:`, cityError);
-        postMessage({
-          type: 'error',
-          error: `${cityName} 載入失敗: ${cityError.message}`
-        });
+        // 不要中斷整個載入流程,只記錄錯誤並繼續
+        console.warn(`[Worker] 跳過 ${cityName},繼續載入下一個城市`);
       }
     }
     
@@ -120,7 +122,9 @@ async function loadAllData() {
     console.error('[Worker] 載入所有資料失敗:', error);
     postMessage({
       type: 'error',
-      error: `載入失敗: ${error.message}`
+      data: {
+        error: `載入失敗: ${error.message}`
+      }
     });
   }
 }
