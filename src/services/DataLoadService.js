@@ -39,14 +39,16 @@ export class DataLoadService {
         };
       }
 
-      if (currentVersion.recordCount < latestVersion.recordCount) {
-        // 有新資料,需要更新
+      // 比較版本號或資料筆數
+      if (currentVersion.version !== latestVersion.version || 
+          currentVersion.recordCount < latestVersion.recordCount) {
+        // 有新版本或新資料,需要更新
         return { 
           needsLoad: false, 
           needsUpdate: true,
           currentVersion,
           latestVersion,
-          newRecords: latestVersion.recordCount - currentVersion.recordCount
+          newRecords: Math.max(0, latestVersion.recordCount - currentVersion.recordCount)
         };
       }
 
