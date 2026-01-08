@@ -163,6 +163,19 @@ export function processRawData(rawData) {
     return [];
   }
   
+  // 檢查資料是否已經處理過
+  if (rawData.length > 0) {
+    const firstRecord = rawData[0];
+    const hasProcessedFields = 'project' in firstRecord && 'district' in firstRecord && 'roomType' in firstRecord;
+    const hasRawFields = '建案名稱' in firstRecord || '區域' in firstRecord || '房型' in firstRecord;
+    
+    // 如果已經處理過(有英文欄位且沒有中文欄位),直接返回
+    if (hasProcessedFields && !hasRawFields) {
+      console.log(`資料已處理過,跳過 processRecord: ${rawData.length} 筆`);
+      return rawData;
+    }
+  }
+  
   const processedData = rawData.map((record, index) => {
     try {
       return processRecord(record, index);
