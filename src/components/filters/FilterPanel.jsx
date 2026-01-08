@@ -4,7 +4,7 @@ import { SearchOutlined, ClearOutlined, FilterOutlined } from '@ant-design/icons
 import { useStore } from '../../store/useStore';
 import { useState, useEffect } from 'react';
 import dayjs from 'dayjs';
-import { getUniqueValues } from '../../utils/dataHelpers';;
+import { getUniqueValues } from '../../utils/dataHelpers';
 
 const { RangePicker } = DatePicker;
 const { Option } = Select;

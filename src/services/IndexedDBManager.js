@@ -189,16 +189,23 @@ export class IndexedDBManager {
           return;
         }
 
-        // 取得所有資料來計算城市數
+        // 取得所有資料來計算城市數 - 使用安全方法避免堆疊溢位
         const getAllRequest = store.getAll();
         
         getAllRequest.onsuccess = () => {
           const allData = getAllRequest.result || [];
-          const cities = new Set(allData.map(item => item.city).filter(Boolean));
+          
+          // 使用 for 迴圈逐步收集城市,避免 map() 導致堆疊溢位
+          const citiesSet = new Set();
+          for (let i = 0; i < allData.length; i++) {
+            if (allData[i].city) {
+              citiesSet.add(allData[i].city);
+            }
+          }
           
           resolve({
             totalRecords,
-            totalCities: cities.size,
+            totalCities: citiesSet.size,
             isLoaded: totalRecords > 0,
             lastUpdated: new Date().toLocaleString('zh-TW')
           });
