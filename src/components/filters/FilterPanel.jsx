@@ -116,7 +116,7 @@ const FilterPanel = () => {
       // 支援中英文欄位名稱
       projectData = projectData.filter(item => localFilters.district.includes(item.district || item['區域']));
     }
-    const projects = getUniqueValues(projectData, item => item.project, { limit: 100 });
+    const projects = getUniqueValues(projectData, item => item.project || item['建案名稱'], { limit: 100 });
     return projects.sort(safeStringSort);
   };
 
